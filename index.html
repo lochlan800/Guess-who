@@ -263,7 +263,10 @@
   .banner.on{display:block}
   .banner.err{border-color:var(--bad);color:#ffd9d9}
 
-  .footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 12px}
+  .footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 12px;line-height:1.7}
+  .build{opacity:.75;font-family:ui-monospace,Menlo,Consolas,monospace}
+  #serverTag.ok{color:var(--good)}
+  #serverTag.bad{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -391,7 +394,11 @@
     </div>
   </section>
 
-  <div class="footer">Peer-to-peer — no accounts, no server storing your games.</div>
+  <div class="footer">
+    Peer-to-peer — no accounts, no server storing your games.<br>
+    <span id="buildTag" class="build">build —</span> ·
+    matchmaking <span id="serverTag">checking…</span>
+  </div>
 </div>
 
 <!-- ================= END MODAL ================= -->
@@ -620,6 +627,7 @@ const S = {
   code:"",
   roomLive:false,         // is our code actually registered right now?
   myName:"You", theirName:"Opponent",
+  lastErr:"",             // last PeerJS error type, shown when things fail
   mySecret:null,          // character object — chosen locally, never sent until reveal
   theirSecret:null,       // only learned at the end
   down:new Set(),         // ids flipped down on my board
@@ -881,6 +889,7 @@ function joinGame(code){
   });
 
   peer.on("error", err => {
+    S.lastErr = err && err.type;
     if (err.type === "peer-unavailable"){ knockFailed(code); return; }
     peerError(err);
   });
@@ -908,7 +917,8 @@ function knockFailed(code){
     setTimeout(() => knock(code), 2500);
     return;
   }
-  banner("Couldn't reach room " + code + ". Check the code, and make sure your friend still has the game open.", true);
+  banner("Couldn't reach room " + code + " — the host's page has to still be open on the room screen. "
+       + "(" + (S.lastErr || "no answer") + ")", true);
   leaveToHome();
 }
 
@@ -936,6 +946,7 @@ document.addEventListener("visibilitychange", () => {
 
 function peerError(err){
   console.error("peer error", err);
+  S.lastErr = err && err.type;
   const map = {
     "network":"Lost connection to the matchmaking server.",
     "server-error":"The matchmaking server is unavailable right now.",
@@ -1361,7 +1372,32 @@ $("#btnChat").addEventListener("click", sendChat);
 $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendChat(); });
 
 /* ---------- boot ---------- */
+/* Bump on every deploy. Both players can read it off the footer, which is the
+   quickest way to tell "it's broken" apart from "you're on a cached copy". */
+const BUILD = "2026-07-28.5";
+
+/* Is the matchmaking server reachable from *this* network at all? Answering
+   that up front separates a blocked network from an expired room. */
+function probeServer(){
+  const tag = $("#serverTag");
+  let done = false, probe;
+  const finish = (ok, why) => {
+    if (done) return;
+    done = true;
+    tag.textContent = ok ? "reachable" : "unreachable" + (why ? " (" + why + ")" : "");
+    tag.className = ok ? "ok" : "bad";
+    try { probe && probe.destroy(); } catch(e){}
+  };
+  try { probe = new Peer(undefined, {debug:0, config:{iceServers:ICE_SERVERS}}); }
+  catch(e){ finish(false, "blocked"); return; }
+  probe.on("open", () => finish(true));
+  probe.on("error", e => finish(false, e && e.type));
+  setTimeout(() => finish(false, "timeout"), 12000);
+}
+
 (function boot(){
+  $("#buildTag").textContent = "build " + BUILD;
+
   // a few random faces on the menu, tilted like real tiles
   const strip = document.getElementById("faceStrip");
   const shuffled = [...CHARACTERS].sort(() => Math.random() - 0.5).slice(0, 6);
@@ -1371,17 +1407,27 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
   const saved = localStorage.getItem("gw_name");
   if (saved) $("#nameInput").value = saved;
 
-  const room = new URLSearchParams(location.search).get("room");
-  if (room){
-    $("#codeInput").value = room.toUpperCase().slice(0, 4);
-    banner("Room " + room.toUpperCase() + " — enter your name and hit Join.");
-  }
-
   if (typeof Peer === "undefined"){
     banner("Couldn't load the peer-to-peer library. Check your connection and reload.", true);
     $("#btnCreate").disabled = true;
     $("#btnJoin").disabled = true;
+    return;
   }
+
+  // A shared link should just drop you into the room — asking someone to
+  // click Join after following a link is a step that earns nothing.
+  const room = new URLSearchParams(location.search).get("room");
+  if (room){
+    const code = room.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+    $("#codeInput").value = code;
+    if (code.length === 4){
+      S.myName = saved || "Player";
+      $("#serverTag").textContent = "connecting…";
+      joinGame(code);
+      return;
+    }
+  }
+  probeServer();
 })();
 </script>
 </body>
