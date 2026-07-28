@@ -25,8 +25,9 @@ example `npx http-server` — and open the address it prints. Opening
 
 ## How to play
 
-- One player clicks **Create a room** and gets a four-character code.
-- The other types that code on the home screen and hits **Join**.
+- One player clicks **Start a room** and gets a four-character code.
+- The other types that code on the home screen and hits **Join** — only one of
+  you starts a room, or you end up in two separate ones.
   (Sharing the room link skips this — it fills the code in for them.)
 - You each get the same 24 characters and are secretly dealt one of them.
   Your character is shown in the side panel; your opponent's is what you're hunting.
@@ -118,3 +119,8 @@ The 24 characters are defined as plain attribute data near the top of the
 script in `index.html`. Both the artwork (drawn as SVG at runtime — there are
 no image files) and the question list are generated from those attributes, so
 adding a character or a question means editing the data, not the drawing code.
+
+Typed questions are matched by the `PATTERNS` table next to the questions
+themselves: each entry names a question and the groups of words a message has
+to contain, every group needing at least one hit. Adding a new way of phrasing
+something means adding a word, not writing any parsing.

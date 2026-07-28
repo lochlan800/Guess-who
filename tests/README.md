@@ -16,7 +16,7 @@ install). Each script exits non-zero on failure and prints one line per check.
 
 | Script | Covers |
 | --- | --- |
-| `test.js` | Rules and UI: the board, questions and answers, auto-flip, guessing, rematch, chat. Two pages with the transport stubbed, so the game logic is exercised without a network. |
+| `test.js` | Rules and UI: the board, asking and answering, that the board never flips itself, guessing, rematch, chat. Two pages with the transport stubbed, so the game logic is exercised without a network. |
 | `recon.js` | Surviving interruptions: re-registering after the connection drops, keeping the same code, and never rebuilding a room that is already healthy. |
 | `rendezvous.js` | Two real tabs meeting over a shared fake signalling network, including the case that matters most — one player's tab freezes, the other takes over the room, and the first reconnects to them. |
 | `questions.js` | Reading typed questions: three dozen real phrasings, the hair-colour-versus-skin-tone traps, negation, that every question is reachable by typing, and that nonsense is refused rather than guessed at. |
