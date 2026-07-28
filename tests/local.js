@@ -16,6 +16,7 @@ const check = (n, c, x) => { console.log((c?'  PASS  ':'  FAIL  ')+n+(x!==undefi
   const ctx = await b.newContext({ viewport: { width: 420, height: 900 } });
   const p = await ctx.newPage();
   const errs = [];
+  p.on('dialog', d => d.accept());
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { const t = m.text();
     if (m.type() === 'error' && !/ERR_TUNNEL|ERR_PROXY|ERR_NAME|ERR_CONNECTION|peerjs/i.test(t)) errs.push(t); });
@@ -86,7 +87,35 @@ const check = (n, c, x) => { console.log((c?'  PASS  ':'  FAIL  ')+n+(x!==undefi
   check('the second player can see how many the first has left',
         (await p.evaluate(() => document.querySelector('#theirCount').textContent)).includes('21'));
 
+  // ---- the round trip: the first player's board must come back intact ----
+  await p.evaluate(() => [10,11].forEach(id => document.querySelector('#board .tile[data-id="'+id+'"]').click()));
+  await p.click('#btnPass');
+  await p.click('#btnCoverReady');
+  await p.waitForTimeout(250);
+  check('handing back returns to the first player',
+        await p.evaluate(() => S.myName) === 'Lochlan');
+  check('their flipped cards are still down',
+        await p.evaluate(() => [...S.down].sort((a,b)=>a-b).join(',')) === '1,2,3',
+        await p.evaluate(() => [...S.down]));
+  check('and are still shown flipped on screen',
+        await p.evaluate(() => document.querySelectorAll('#board .tile.down').length) === 3);
+  check('the board is labelled with whose it is',
+        (await p.evaluate(() => document.querySelector('#boardWhose').textContent)).includes('Lochlan'));
+  check('the log marks the handover so it does not look like a reset',
+        (await p.evaluate(() => document.querySelector('#log').textContent)).includes('as you left it'));
+  check("the other player's flips are untouched",
+        await p.evaluate(() => L.players[1].down.size) === 2);
+
+  // one more lap, to be sure nothing drifts
+  await p.click('#btnPass'); await p.click('#btnCoverReady'); await p.waitForTimeout(200);
+  await p.click('#btnPass'); await p.click('#btnCoverReady'); await p.waitForTimeout(200);
+  check('boards survive several handovers',
+        await p.evaluate(() => [...S.down].sort((a,b)=>a-b).join(',')) === '1,2,3'
+          && await p.evaluate(() => L.players[1].down.size) === 2);
+
   // ---- second player guesses wrong ----
+  await p.click('#btnPass'); await p.click('#btnCoverReady'); await p.waitForTimeout(200);
+  check('it is the second player about to guess', await p.evaluate(() => S.myName) === 'Sam');
   const wrongId = await p.evaluate(() => (L.players[0].secret.id % 24) + 1);
   await p.click('#btnGuess');
   await p.evaluate(id => document.querySelector('#board .tile[data-id="'+id+'"]').click(), wrongId);

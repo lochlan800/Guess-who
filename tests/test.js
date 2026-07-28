@@ -17,6 +17,7 @@ function check(name, cond, extra) {
 
   const errors = [];
   for (const [nm, p] of [['A', A], ['B', B]]) {
+    p.on('dialog', d => d.accept());        // the reset guard asks before clearing
     p.on('pageerror', e => errors.push(nm + ' pageerror: ' + e.message));
     p.on('console', m => {
       const t = m.text();

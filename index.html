@@ -538,7 +538,7 @@
     <div class="gamegrid">
       <div>
         <div class="boardhead">
-          <h2>Your board</h2>
+          <h2 id="boardWhose">Your board</h2>
           <span class="counter" id="remainCount">24 still standing</span>
           <span class="counter" id="theirCount">Opponent: 24 standing</span>
         </div>
@@ -952,7 +952,7 @@ const el = {
            lobby:$("#scLobby"), game:$("#scGame")},
   board:$("#board"), log:$("#log"),
   turnbar:$("#turnbar"), turnText:$("#turnText"),
-  remain:$("#remainCount"), theirRemain:$("#theirCount"),
+  remain:$("#remainCount"), theirRemain:$("#theirCount"), boardWhose:$("#boardWhose"),
   qInput:$("#qInput"), qReading:$("#qReading"), askAbout:$("#askAbout"),
   btnAsk:$("#btnAsk"), btnGuess:$("#btnGuess"),
   guessHint:$("#guessHint"),
@@ -1816,7 +1816,11 @@ function loadLocalPlayer(i){
   refreshBoard();
   renderSecret();
   renderTurn();
+  el.boardWhose.textContent = me.name + "'s board";
   el.theirRemain.textContent = them.name + ": " + (CHARACTERS.length - them.down.size) + " standing";
+  logLine("— <b>" + esc(me.name) + "</b>'s turn —"
+        + (me.down.size ? " your board is as you left it, " + me.down.size + " card"
+           + (me.down.size === 1 ? "" : "s") + " down." : ""), "sys");
 }
 
 function coverFor(i){
@@ -1895,6 +1899,7 @@ function startNewGame(iAmHost, guestFirstFromHost){
 
   buildBoard();
   renderSecret();
+  el.boardWhose.textContent = "Your board";
   el.qInput.value = "";
   updateReading();
   buildQuestionList();
@@ -2205,6 +2210,8 @@ $("#btnCancelGuess").addEventListener("click", () => {
 });
 
 $("#btnResetBoard").addEventListener("click", () => {
+  if (S.down.size && !confirm("Turn all your cards back up? This clears everything you've worked out."))
+    return;
   S.down.clear();
   refreshBoard();
   send({t:"eliminated", standing:CHARACTERS.length});
@@ -2235,7 +2242,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.12";
+const BUILD = "2026-07-28.13";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */
