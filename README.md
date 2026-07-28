@@ -37,6 +37,21 @@ example `npx http-server` — and open the address it prints. Opening
   tile to flip it down or back up yourself.
 - When you think you know, use **Final guess**. Right, you win. Wrong, you lose.
 
+## If your friend gets "couldn't reach room"
+
+A room exists only while the host's page is open — there's no server holding
+it. If the host closes the tab, the room is gone and the code stops working.
+
+Backgrounding the page used to kill the room too, because phones suspend
+hidden tabs and that drops the connection to the matchmaking server. The game
+now notices and re-registers the same code automatically, and the lobby shows
+a green dot while the room is actually live and a red one while it's
+reconnecting. If the dot is red, wait for it to go green before your friend
+tries the code.
+
+So: create the room, send the code, and leave the tab open. If it still fails,
+have the host cancel and create a fresh room.
+
 ## Notes on how it works
 
 - Neither player's secret character is ever sent to the other until the game

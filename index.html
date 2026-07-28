@@ -113,6 +113,13 @@
   input[type=text]:focus{outline:2px solid var(--accent2);outline-offset:1px}
   input.name{letter-spacing:0;text-transform:none;text-align:left;width:220px;font-size:15px}
   .hint{color:var(--muted);font-size:13px;margin-top:14px;line-height:1.5}
+  .livedot{
+    display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;
+    vertical-align:middle;background:var(--muted)
+  }
+  .livedot.up{background:var(--good);box-shadow:0 0 0 3px rgba(93,220,122,.18)}
+  .livedot.down{background:var(--bad);box-shadow:0 0 0 3px rgba(255,107,107,.18);animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.35}}
 
   /* ---------- Lobby / code ---------- */
   .codebig{
@@ -313,6 +320,10 @@
       <p class="hint">Or just send them this link — it drops them straight into your room.</p>
 
       <div class="waiting"><span class="spin"></span> <span id="lobbyStatus">Waiting for your opponent to join…</span></div>
+      <p class="hint" style="margin-top:10px">
+        <span id="lobbyDot" class="livedot up"></span>
+        Keep this page open — the room only exists while you're here.
+      </p>
 
       <div style="margin-top:22px">
         <button class="btn ghost sm" id="btnLeaveLobby">Cancel</button>
@@ -607,6 +618,7 @@ const S = {
   peer:null, conn:null,
   isHost:false,
   code:"",
+  roomLive:false,         // is our code actually registered right now?
   myName:"You", theirName:"Opponent",
   mySecret:null,          // character object — chosen locally, never sent until reveal
   theirSecret:null,       // only learned at the end
@@ -690,6 +702,101 @@ function roomUrl(code){
   return location.origin + location.pathname + "?room=" + code;
 }
 
+/* ---------------------------------------------------------
+   Hosting.
+
+   A room code only exists while the host's socket to the
+   signalling server is open. Phones suspend background tabs
+   the moment you switch apps to send someone the code, which
+   drops that socket and quietly unregisters the room — so the
+   host has to actively keep it alive and say so on screen.
+   --------------------------------------------------------- */
+
+let rehostTimer = null;
+let rehostTries = 0;
+const MAX_REHOST = 20;
+
+function setRoomLive(live){
+  S.roomLive = live;
+  if (S.phase !== "lobby" || !S.isHost) return;
+  $("#lobbyStatus").textContent = live
+    ? "Waiting for your opponent to join…"
+    : "Reconnecting to the matchmaking server…";
+  $("#lobbyDot").className = "livedot " + (live ? "up" : "down");
+}
+
+function scheduleRehost(code, delay){
+  if (rehostTimer || S.phase !== "lobby" || !S.isHost) return;
+  if (++rehostTries > MAX_REHOST){
+    banner("Lost the connection to the matchmaking server. Please create a new room.", true);
+    leaveToHome();
+    return;
+  }
+  rehostTimer = setTimeout(() => { rehostTimer = null; rehostSameCode(code); }, delay || 2000);
+}
+
+/* Re-register the *same* code: it may already be written down or sent, so
+   quietly switching to a different one would be worse than the outage. */
+function rehostSameCode(code){
+  if (S.phase !== "lobby" || !S.isHost) return;
+  if (S.conn && S.conn.open) return;
+  try { if (S.peer) S.peer.destroy(); } catch(e){}
+  const peer = newPeer(PEER_PREFIX + code);
+  S.peer = peer;
+  attachHostHandlers(peer, code, -1);
+}
+
+/* attempt >= 0 -> creating a brand new room, nobody has the code yet.
+   attempt <  0 -> re-registering a code that has already been shared.      */
+function attachHostHandlers(peer, code, attempt){
+  peer.on("open", () => {
+    stopWatchdog();
+    rehostTries = 0;
+    $("#lobbyCode").textContent = code;
+    el.roomPillCode.textContent = code;
+    el.roomPill.style.display = "";
+    $("#shareUrl").textContent = roomUrl(code);
+    $("#shareUrl").dataset.url = roomUrl(code);
+    $("#btnCopy").disabled = false;
+    setRoomLive(true);
+  });
+
+  peer.on("connection", conn => {
+    if (S.conn && S.conn.open){ conn.close(); return; }  // room is full
+    bindConn(conn);
+  });
+
+  // socket dropped (backgrounded tab, sleep, flaky wifi) — the room is
+  // unregistered until we get back, so get back promptly
+  peer.on("disconnected", () => {
+    setRoomLive(false);
+    if (S.phase !== "lobby") return;
+    try { peer.reconnect(); } catch(e){ scheduleRehost(code); }
+  });
+
+  peer.on("close", () => {
+    setRoomLive(false);
+    scheduleRehost(code);
+  });
+
+  peer.on("error", err => {
+    if (err.type === "unavailable-id"){
+      try { peer.destroy(); } catch(e){}
+      // Nobody has seen this code yet, so on the very first attempt it's free
+      // to pick another. Later it's a stale registration of our own code —
+      // wait for it to lapse instead of changing the code under the host.
+      if (attempt >= 0) hostGame(attempt + 1);
+      else { setRoomLive(false); scheduleRehost(code, 4000); }
+      return;
+    }
+    if (err.type === "network" || err.type === "socket-error" || err.type === "server-error"){
+      setRoomLive(false);
+      if (S.phase === "lobby"){ scheduleRehost(code, 3000); return; }
+    }
+    peerError(err);
+  });
+}
+
 function hostGame(attempt){
   attempt = attempt || 0;
   if (attempt > 5){ banner("Couldn't create a room. Please try again.", true); leaveToHome(); return; }
@@ -697,6 +804,7 @@ function hostGame(attempt){
   const code = makeCode();
   S.isHost = true;
   S.code = code;
+  rehostTries = 0;
 
   // show the lobby straight away so the click always feels like it did something
   S.phase = "lobby";
@@ -705,40 +813,26 @@ function hostGame(attempt){
   $("#btnCopy").disabled = true;
   $("#lobbyStatus").textContent = "Creating your room…";
   show("lobby");
-  startWatchdog(15000, "Couldn't reach the matchmaking server. Check your connection and try again.");
+  keepAwake();
+  startWatchdog(20000, "Couldn't reach the matchmaking server. Check your connection and try again.");
 
   const peer = newPeer(PEER_PREFIX + code);
   S.peer = peer;
-
-  peer.on("open", () => {
-    stopWatchdog();
-    $("#lobbyCode").textContent = code;
-    $("#lobbyStatus").textContent = "Waiting for your opponent to join…";
-    el.roomPillCode.textContent = code;
-    el.roomPill.style.display = "";
-    $("#shareUrl").textContent = roomUrl(code);
-    $("#shareUrl").dataset.url = roomUrl(code);
-    $("#btnCopy").disabled = false;
-  });
-
-  peer.on("connection", conn => {
-    if (S.conn && S.conn.open){ conn.close(); return; }  // room is full
-    bindConn(conn);
-  });
-
-  peer.on("error", err => {
-    if (err.type === "unavailable-id"){       // code collision — pick another
-      try { peer.destroy(); } catch(e){}
-      hostGame(attempt + 1);
-      return;
-    }
-    peerError(err);
-  });
+  attachHostHandlers(peer, code, attempt);
 }
+
+/* ---------------------------------------------------------
+   Joining. The host may be mid-reconnect when we knock, so
+   a closed door isn't final — knock a few times first.
+   --------------------------------------------------------- */
+
+const JOIN_TRIES = 5;
+let joinTries = 0;
 
 function joinGame(code){
   S.isHost = false;
   S.code = code;
+  joinTries = 0;
 
   S.phase = "lobby";
   $("#lobbyCode").textContent = code;
@@ -749,26 +843,74 @@ function joinGame(code){
   el.roomPillCode.textContent = code;
   el.roomPill.style.display = "";
   show("lobby");
-  startWatchdog(15000, "Couldn't reach the matchmaking server. Check your connection and try again.");
+  keepAwake();
+  startWatchdog(20000, "Couldn't reach the matchmaking server. Check your connection and try again.");
 
   const peer = newPeer(undefined);  // broker assigns us a random id
   S.peer = peer;
 
   peer.on("open", () => {
-    startWatchdog(15000, "No room found with code " + code + ". Check the code and try again.");
-    const conn = peer.connect(PEER_PREFIX + code, {reliable:true});
-    bindConn(conn);
+    stopWatchdog();
+    knock(code);
+  });
+
+  peer.on("disconnected", () => {
+    if (S.phase !== "home" && !(S.conn && S.conn.open)) { try { peer.reconnect(); } catch(e){} }
   });
 
   peer.on("error", err => {
-    if (err.type === "peer-unavailable"){
-      banner("No room found with code " + code + ".", true);
-      leaveToHome();
-      return;
-    }
+    if (err.type === "peer-unavailable"){ knockFailed(code); return; }
     peerError(err);
   });
 }
+
+function knock(code){
+  if (S.phase !== "lobby" || !S.peer || (S.conn && S.conn.open)) return;
+  joinTries++;
+  $("#lobbyStatus").textContent = joinTries === 1
+    ? "Connecting to " + code + "…"
+    : "Room " + code + " isn't answering — retry " + joinTries + " of " + JOIN_TRIES + "…";
+  const conn = S.peer.connect(PEER_PREFIX + code, {reliable:true});
+  bindConn(conn);
+
+  // the connection can also just never open (blocked WebRTC), so time it out
+  clearTimeout(knockTimer);
+  knockTimer = setTimeout(() => { if (!(S.conn && S.conn.open)) knockFailed(code); }, 8000);
+}
+let knockTimer = null;
+
+function knockFailed(code){
+  clearTimeout(knockTimer);
+  if (S.phase !== "lobby" || (S.conn && S.conn.open)) return;
+  if (joinTries < JOIN_TRIES){
+    setTimeout(() => knock(code), 2500);
+    return;
+  }
+  banner("Couldn't reach room " + code + ". Check the code, and make sure your friend still has the game open.", true);
+  leaveToHome();
+}
+
+/* Best effort: stop the screen sleeping while someone waits in the lobby,
+   since a locked phone suspends the page and takes the room down with it. */
+let wakeLock = null;
+async function keepAwake(){
+  try {
+    if (navigator.wakeLock && !wakeLock) wakeLock = await navigator.wakeLock.request("screen");
+  } catch(e){ /* unsupported or denied — nothing we can do */ }
+}
+function releaseAwake(){
+  try { if (wakeLock){ wakeLock.release(); wakeLock = null; } } catch(e){}
+}
+
+// coming back to the tab is the best possible moment to repair the connection
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (S.phase === "lobby") keepAwake();
+  const p = S.peer;
+  if (!p || (S.conn && S.conn.open)) return;
+  if (p.destroyed){ if (S.isHost && S.phase === "lobby") rehostSameCode(S.code); return; }
+  if (p.disconnected){ try { p.reconnect(); } catch(e){ if (S.isHost) scheduleRehost(S.code, 500); } }
+});
 
 function peerError(err){
   console.error("peer error", err);
@@ -788,6 +930,9 @@ function bindConn(conn){
 
   conn.on("open", () => {
     stopWatchdog();
+    clearTimeout(knockTimer);
+    clearTimeout(rehostTimer); rehostTimer = null;
+    releaseAwake();
     el.connPill.style.display = "";
     setConnPill(true);
     send({t:"hello", name:S.myName});
@@ -797,6 +942,7 @@ function bindConn(conn){
   conn.on("data", handleMessage);
 
   conn.on("close", () => {
+    if (conn !== S.conn) return;        // an abandoned retry, not the live game
     setConnPill(false);
     if (S.phase === "playing"){
       logLine("<b>" + esc(S.theirName) + "</b> disconnected.", "sys");
@@ -1085,10 +1231,14 @@ function doRematch(){
 
 function leaveToHome(){
   stopWatchdog();
+  clearTimeout(knockTimer);
+  clearTimeout(rehostTimer); rehostTimer = null;
+  releaseAwake();
   try { if (S.conn) S.conn.close(); } catch(e){}
   try { if (S.peer) S.peer.destroy(); } catch(e){}
   S.conn = S.peer = null;
   S.phase = "home";
+  S.roomLive = false;
   el.roomPill.style.display = "none";
   el.connPill.style.display = "none";
   el.endModal.classList.remove("on");
