@@ -286,7 +286,8 @@
       <h1>Guess Who</h1>
       <p class="sub">
         Play the classic guessing game with a friend, anywhere.<br>
-        One of you creates a room, shares the code, and you're in.
+        Share a code, then you can both turn up whenever — whoever
+        arrives first waits for the other.
       </p>
 
       <div style="margin-bottom:18px">
@@ -325,7 +326,8 @@
       <div class="waiting"><span class="spin"></span> <span id="lobbyStatus">Waiting for your opponent to join…</span></div>
       <p class="hint" style="margin-top:10px">
         <span id="lobbyDot" class="livedot up"></span>
-        Keep this page open — the room only exists while you're here.
+        Send the code, then leave this open. If you get pulled away, your
+        friend holds the room until you're back.
       </p>
 
       <div style="margin-top:22px">
@@ -829,12 +831,12 @@ function attachHostHandlers(peer, code, attempt){
     if (!current()) return;
     S.lastErr = err && err.type;
     if (err.type === "unavailable-id"){
+      // Someone else is holding this code — almost certainly the other player,
+      // who woke up while we were away. Go and knock on their door instead.
+      S.peer = null;
       try { peer.destroy(); } catch(e){}
-      // Nobody has seen this code yet, so on the very first attempt it's free
-      // to pick another. Later it's a stale registration of our own code —
-      // wait for it to lapse instead of changing the code under the host.
-      if (attempt >= 0) hostGame(attempt + 1);
-      else { setRoomLive(false); scheduleRehost(code, 4000); }
+      setRoomLive(false);
+      setTimeout(() => seek(code), 600);
       return;
     }
     if (err.type === "network" || err.type === "socket-error" || err.type === "server-error"){
@@ -845,99 +847,112 @@ function attachHostHandlers(peer, code, attempt){
   });
 }
 
-function hostGame(attempt){
-  attempt = attempt || 0;
-  if (attempt > 5){ banner("Couldn't create a room. Please try again.", true); leaveToHome(); return; }
-
-  const code = makeCode();
-  S.isHost = true;
-  S.code = code;
-  rehostTries = 0;
-
-  // show the lobby straight away so the click always feels like it did something
-  S.phase = "lobby";
-  $("#lobbyCode").textContent = "····";
-  $("#shareUrl").textContent = "…";
-  $("#btnCopy").disabled = true;
-  $("#lobbyStatus").textContent = "Creating your room…";
-  show("lobby");
-  keepAwake();
-  startWatchdog(20000, "Couldn't reach the matchmaking server. Check your connection and try again.");
-
-  const peer = newPeer(PEER_PREFIX + code);
-  S.peer = peer;
-  attachHostHandlers(peer, code, attempt);
-}
-
 /* ---------------------------------------------------------
-   Joining. The host may be mid-reconnect when we knock, so
-   a closed door isn't final — knock a few times first.
+   Rendezvous.
+
+   A room lives inside a browser tab, and a suspended tab runs
+   no code at all — so the moment you switch to another app to
+   send someone the code, your room stops existing, which is
+   exactly when they try to use it. No amount of reconnecting
+   fixes that, because nothing of ours is running.
+
+   So neither player owns the room. Both walk up to the same
+   code: if someone is already there you connect to them, and
+   if nobody is there you hold it open yourself. Whoever is
+   awake keeps the room, and the two can swap roles freely as
+   phones sleep and wake.
    --------------------------------------------------------- */
 
-const JOIN_TRIES = 5;
-let joinTries = 0;
+const MAX_ROUNDS = 6;      // seek -> host alternations before giving up
+let   rounds     = 0;
+let   knockTimer = null;
 
-function joinGame(code){
-  S.isHost = false;
-  S.code = code;
-  joinTries = 0;
-
+function showLobbyFor(code){
   S.phase = "lobby";
+  S.code = code;
   $("#lobbyCode").textContent = code;
-  $("#lobbyStatus").textContent = "Connecting to " + code + "…";
   $("#shareUrl").textContent = roomUrl(code);
   $("#shareUrl").dataset.url = roomUrl(code);
   $("#btnCopy").disabled = false;
   el.roomPillCode.textContent = code;
   el.roomPill.style.display = "";
   show("lobby");
-  keepAwake();
-  startWatchdog(20000, "Couldn't reach the matchmaking server. Check your connection and try again.");
+}
 
-  const peer = newPeer(undefined);  // broker assigns us a random id
+function enterRoom(code){
+  rounds = 0; rehostTries = 0;
+  S.isHost = false;
+  S.roomLive = false;
+  showLobbyFor(code);
+  $("#lobbyStatus").textContent = "Looking for " + code + "…";
+  keepAwake();
+  startWatchdog(25000, "Couldn't reach the matchmaking server. Check your connection and try again.");
+  seek(code);
+}
+
+/* Step 1 — is anyone already holding this code? */
+function seek(code){
+  if (S.phase !== "lobby") return;
+  clearTimeout(rehostTimer); rehostTimer = null;
+  const old = S.peer; S.peer = null;
+  try { if (old) old.destroy(); } catch(e){}
+
+  S.isHost = false;
+  setRoomLive(false);
+  const peer = newPeer(undefined);          // broker assigns us a random id
   S.peer = peer;
+  const current = () => peer === S.peer;
 
   peer.on("open", () => {
+    if (!current()) { try { peer.destroy(); } catch(e){} return; }
     stopWatchdog();
     knock(code);
   });
 
   peer.on("disconnected", () => {
-    if (S.phase !== "home" && !(S.conn && S.conn.open)) { try { peer.reconnect(); } catch(e){} }
+    if (!current() || (S.conn && S.conn.open)) return;
+    try { peer.reconnect(); } catch(e){}
   });
 
   peer.on("error", err => {
+    if (!current()) return;
     S.lastErr = err && err.type;
-    if (err.type === "peer-unavailable"){ knockFailed(code); return; }
+    // nobody is holding the code — so we will
+    if (err.type === "peer-unavailable"){ clearTimeout(knockTimer); becomeHost(code); return; }
     peerError(err);
   });
 }
 
 function knock(code){
   if (S.phase !== "lobby" || !S.peer || (S.conn && S.conn.open)) return;
-  joinTries++;
-  $("#lobbyStatus").textContent = joinTries === 1
-    ? "Connecting to " + code + "…"
-    : "Room " + code + " isn't answering — retry " + joinTries + " of " + JOIN_TRIES + "…";
+  $("#lobbyStatus").textContent = "Looking for " + code + "…";
   const conn = S.peer.connect(PEER_PREFIX + code, {reliable:true});
   bindConn(conn);
-
-  // the connection can also just never open (blocked WebRTC), so time it out
+  // it can also be accepted and never open (blocked data channel)
   clearTimeout(knockTimer);
-  knockTimer = setTimeout(() => { if (!(S.conn && S.conn.open)) knockFailed(code); }, 8000);
+  knockTimer = setTimeout(() => {
+    if (S.phase === "lobby" && !(S.conn && S.conn.open)) becomeHost(code);
+  }, 9000);
 }
-let knockTimer = null;
 
-function knockFailed(code){
-  clearTimeout(knockTimer);
+/* Step 2 — nobody was there, so hold the room open ourselves. */
+function becomeHost(code){
   if (S.phase !== "lobby" || (S.conn && S.conn.open)) return;
-  if (joinTries < JOIN_TRIES){
-    setTimeout(() => knock(code), 2500);
+  clearTimeout(knockTimer);
+  if (++rounds > MAX_ROUNDS){
+    banner("Couldn't set up room " + code + ". Try again, or pick a different code. "
+         + "(" + (S.lastErr || "no answer") + ")", true);
+    leaveToHome();
     return;
   }
-  banner("Couldn't reach room " + code + " — the host's page has to still be open on the room screen. "
-       + "(" + (S.lastErr || "no answer") + ")", true);
-  leaveToHome();
+  const old = S.peer; S.peer = null;
+  try { if (old) old.destroy(); } catch(e){}
+
+  S.isHost = true;
+  $("#lobbyStatus").textContent = "Holding the room open…";
+  const peer = newPeer(PEER_PREFIX + code);
+  S.peer = peer;
+  attachHostHandlers(peer, code, -1);
 }
 
 /* Best effort: stop the screen sleeping while someone waits in the lobby,
@@ -958,6 +973,9 @@ document.addEventListener("visibilitychange", () => {
   if (S.phase === "lobby") keepAwake();
   const p = S.peer;
   if (!p || (S.conn && S.conn.open)) return;
+  // Waking up is also the moment to check whether the other player got tired
+  // of waiting and started holding the room themselves.
+  if (S.phase === "lobby" && !S.isHost){ seek(S.code); return; }
   if (p.destroyed){ if (S.isHost && S.phase === "lobby") rehostSameCode(S.code); return; }
   if (p.disconnected){ try { p.reconnect(); } catch(e){ if (S.isHost) scheduleRehost(S.code, 500); } }
 });
@@ -988,6 +1006,9 @@ function bindConn(conn){
     setConnPill(true);
     send({t:"hello", name:S.myName});
     if (S.isHost) startNewGame(true);   // host owns "who goes first"
+    // The first message can land before this handler runs, in which case the
+    // controls were rendered against a connection that did not look open yet.
+    renderTurn();
   });
 
   conn.on("data", handleMessage);
@@ -1311,8 +1332,7 @@ function myNameFromInput(){
 $("#btnCreate").addEventListener("click", () => {
   S.myName = myNameFromInput();
   localStorage.setItem("gw_name", S.myName);
-  $("#lobbyStatus").textContent = "Waiting for your opponent to join…";
-  hostGame();
+  enterRoom(makeCode());
 });
 
 function tryJoin(){
@@ -1320,7 +1340,7 @@ function tryJoin(){
   if (code.length !== 4){ banner("Room codes are 4 characters.", true); return; }
   S.myName = myNameFromInput();
   localStorage.setItem("gw_name", S.myName);
-  joinGame(code);
+  enterRoom(code);
 }
 $("#btnJoin").addEventListener("click", tryJoin);
 $("#codeInput").addEventListener("keydown", e => { if (e.key === "Enter") tryJoin(); });
@@ -1394,7 +1414,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.6";
+const BUILD = "2026-07-28.7";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */
@@ -1443,7 +1463,7 @@ function probeServer(){
     if (code.length === 4){
       S.myName = saved || "Player";
       $("#serverTag").textContent = "connecting…";
-      joinGame(code);
+      enterRoom(code);
       return;
     }
   }

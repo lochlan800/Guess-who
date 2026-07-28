@@ -37,20 +37,25 @@ example `npx http-server` — and open the address it prints. Opening
   tile to flip it down or back up yourself.
 - When you think you know, use **Final guess**. Right, you win. Wrong, you lose.
 
-## If your friend gets "couldn't reach room"
+## Turning up at a room
 
-A room exists only while the host's page is open — there's no server holding
-it. If the host closes the tab, the room is gone and the code stops working.
+Neither player owns the room. You both walk up to the same code: whoever gets
+there first holds it open and waits, and the second one to arrive connects.
 
-Backgrounding the page used to kill the room too, because phones suspend
-hidden tabs and that drops the connection to the matchmaking server. The game
-now notices and re-registers the same code automatically, and the lobby shows
-a green dot while the room is actually live and a red one while it's
-reconnecting. If the dot is red, wait for it to go green before your friend
-tries the code.
+That matters because a room lives inside a browser tab, and a suspended tab
+runs no code at all. Switching to another app to send someone the code is
+enough to freeze the page, which used to take the room down at exactly the
+moment your friend was trying to use it. Now if you get pulled away, your
+friend simply takes over holding the room, and when you come back your page
+notices someone else has it and connects to them instead.
 
-So: create the room, send the code, and leave the tab open. If it still fails,
-have the host cancel and create a fresh room.
+So the code can be shared whenever and used whenever. You don't have to be
+looking at the page at the same moment.
+
+If it still won't connect, the footer says whether the matchmaking server is
+reachable from that device at all, which separates a blocked network from
+anything else. The lobby's dot is green while the room is genuinely
+registered.
 
 ## Notes on how it works
 
