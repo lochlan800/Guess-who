@@ -85,37 +85,44 @@ function check(name, cond, extra) {
   check('secret shown in side panel', (await A.evaluate(() => document.querySelector('#secretName').textContent)) === 'Bella');
 
   // ---- Round 1: Alice asks about glasses; Hugo has none -> NO ----
-  await A.evaluate(() => { document.querySelector('#qSelect').value = 'glasses'; document.querySelector('#btnAsk').click(); });
+  await A.evaluate(() => { document.querySelector('#qInput').value = 'do they wear glasses'; updateReading(); document.querySelector('#btnAsk').click(); });
   await pump(A, B);                       // ask -> B
   await pump(B, A);                       // answer (+ eliminated) -> A
 
-  const withGlasses = await A.evaluate(() => CHARACTERS.filter(c => c.glasses).map(c => c.id));
+  // Working out who is ruled out is the player's job — the board must not
+  // move on its own, however obvious the deduction is.
   const downA = await A.evaluate(() => [...S.down]);
-  check('auto-flip removed every glasses-wearer',
-        withGlasses.every(id => downA.includes(id)) && downA.length === withGlasses.length,
-        { expected: withGlasses.length, got: downA.length });
-  check('flipped tiles show as down in the DOM',
-        await A.evaluate(() => document.querySelectorAll('#board .tile.down').length) === withGlasses.length);
-  check('counter updated',
-        (await A.evaluate(() => document.querySelector('#remainCount').textContent)) === (24 - withGlasses.length) + ' still standing');
+  check('the board does not flip itself after an answer', downA.length === 0, downA);
+  check('no tiles went down in the DOM either',
+        await A.evaluate(() => document.querySelectorAll('#board .tile.down').length) === 0);
+  check('counter still shows everyone standing',
+        (await A.evaluate(() => document.querySelector('#remainCount').textContent)) === '24 still standing');
   check('answer logged as NO', (await A.evaluate(() => document.querySelector('#log').textContent)).includes('NO'));
-  await pump(A, B);                       // A's auto-flip broadcasts its new count
+  check('the log shows the question as it was typed',
+        (await A.evaluate(() => document.querySelector('#log').textContent)).includes('do they wear glasses'));
+  await pump(A, B);
   check('turn passed to Bob (A no longer has it)', (await A.evaluate(() => S.myTurn)) === false);
   check('Bob now has the turn', (await B.evaluate(() => S.myTurn)) === true);
-  check("Bob's view of Alice's count updated",
-        (await B.evaluate(() => document.querySelector('#theirCount').textContent)).includes(String(24 - withGlasses.length)));
   check('ask button disabled when not your turn', await A.evaluate(() => document.querySelector('#btnAsk').disabled));
 
+  // the player flips them by hand, and that count reaches the opponent
+  const withGlasses = await A.evaluate(() => CHARACTERS.filter(c => c.glasses).map(c => c.id));
+  await A.evaluate(ids => ids.forEach(id => document.querySelector('#board .tile[data-id="' + id + '"]').click()), withGlasses);
+  check('flipping by hand updates the count',
+        (await A.evaluate(() => S.down.size)) === withGlasses.length);
+  await pump(A, B);
+  check("Bob's view of Alice's count updated",
+        (await B.evaluate(() => document.querySelector('#theirCount').textContent)).includes(String(24 - withGlasses.length)));
+
   // ---- Round 2: Bob asks "female?"; Bella is female -> YES ----
-  await B.evaluate(() => { document.querySelector('#qSelect').value = 'female'; document.querySelector('#btnAsk').click(); });
+  await B.evaluate(() => { document.querySelector('#qInput').value = 'is your person female'; updateReading(); document.querySelector('#btnAsk').click(); });
   await pump(B, A);
   await pump(A, B);
 
-  const femaleIds = await B.evaluate(() => CHARACTERS.filter(c => c.gender === 'female').map(c => c.id));
-  const downB = await B.evaluate(() => [...S.down]);
-  check('YES answer keeps only matching characters standing',
-        downB.length === 24 - femaleIds.length && femaleIds.every(id => !downB.includes(id)),
-        { standing: 24 - downB.length, expected: femaleIds.length });
+  check('a YES answer is logged as YES',
+        (await B.evaluate(() => document.querySelector('#log').textContent)).includes('YES'));
+  check("Bob's board is still untouched by the answer",
+        (await B.evaluate(() => S.down.size)) === 0);
   check('turn came back to Alice', (await A.evaluate(() => S.myTurn)) === true);
 
   // ---- manual flip / unflip still works ----

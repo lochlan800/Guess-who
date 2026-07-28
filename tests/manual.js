@@ -106,7 +106,8 @@ const waitFor = async (pg, fn, ms = 15000) => {
   const ready = pg => pg.evaluate(() => S.phase === 'playing' && S.myTurn && !document.querySelector('#btnAsk').disabled);
   const askFrom = pg => pg.evaluate(() => {
     if (!S.myTurn || document.querySelector('#btnAsk').disabled) return false;
-    document.querySelector('#qSelect').value = 'glasses';
+    document.querySelector('#qInput').value = 'do they wear glasses';
+    updateReading();
     document.querySelector('#btnAsk').click();
     return true;
   });

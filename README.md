@@ -30,11 +30,12 @@ example `npx http-server` — and open the address it prints. Opening
   (Sharing the room link skips this — it fills the code in for them.)
 - You each get the same 24 characters and are secretly dealt one of them.
   Your character is shown in the side panel; your opponent's is what you're hunting.
-- On your turn, pick a question and hit **Ask**. Their game answers it
-  automatically and honestly, and the turn passes to them.
-- Characters ruled out by the answer are flipped down for you. Turn off
-  **Auto-flip** in the top bar if you'd rather do it by hand, and click any
-  tile to flip it down or back up yourself.
+- On your turn, **type a question in your own words** — "do they have a
+  beard?", "are they ginger?", "is your person wearing a hat?" — and the game
+  shows what it understood before you send it. Their device answers from their
+  own character, so the answer is always honest.
+- **You** flip the cards down. Working out who is ruled out is the game, so
+  nothing moves on its own; click any tile to flip it down or back up.
 - When you think you know, use **Final guess**. Right, you win. Wrong, you lose.
 
 ## Connect manually — when codes won't work
@@ -87,7 +88,11 @@ registered.
 
 - Neither player's secret character is ever sent to the other until the game
   ends. Questions are answered by the *answering* player's own browser from
-  their own character, so nobody can peek and nobody has to be trusted.
+  their own character, so nobody can peek and nobody has to be trusted. Typing
+  questions freely does not change that: the words are matched to one of the
+  known questions, and that question is what the other device answers.
+- If a question can't be understood it is refused rather than guessed at — a
+  confidently wrong answer would be worse than asking again.
 - Room codes skip the letters `I`/`O` and the digits `0`/`1` so they're
   unambiguous when read out loud.
 - The two browsers find each other through PeerJS's free public signalling

@@ -261,6 +261,26 @@
   .qbtns{display:flex;gap:8px;flex-wrap:wrap}
   .qbtns .btn{flex:1;min-width:120px}
 
+  input.qask{
+    width:100%;text-align:left;text-transform:none;letter-spacing:normal;
+    font-size:14.5px;padding:11px 13px;margin-bottom:8px
+  }
+  .reading{
+    font-size:12.5px;line-height:1.45;color:var(--muted);min-height:32px;
+    margin-bottom:10px;padding:7px 10px;border-radius:9px;background:rgba(0,0,0,.22);
+    border-left:3px solid var(--line)
+  }
+  .reading.ok{border-left-color:var(--good);color:var(--text)}
+  .reading.no{border-left-color:var(--bad)}
+  .reading b{color:var(--accent)}
+  .asklist{margin-top:10px;font-size:12.5px;color:var(--muted)}
+  .asklist summary{cursor:pointer;user-select:none}
+  .asklist div{margin-top:8px;line-height:1.7}
+  .asklist .tag{
+    display:inline-block;background:rgba(0,0,0,.25);border:1px solid var(--line);
+    border-radius:999px;padding:2px 9px;margin:0 4px 4px 0;font-size:11.5px
+  }
+
   .log{
     max-height:290px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;
     font-size:13.5px;line-height:1.45;
@@ -272,6 +292,7 @@
   .log .e.yes{border-left-color:var(--good)}
   .log .e.no{border-left-color:var(--bad)}
   .log .e b{color:#fff}
+  .log .asread{color:var(--muted);font-style:italic}
   .log .a{font-weight:bold}
   .log .a.y{color:var(--good)}
   .log .a.n{color:var(--bad)}
@@ -467,9 +488,6 @@
     <div class="turnbar" id="turnbar">
       <div class="status" id="turnText">Setting up…</div>
       <div class="spacer"></div>
-      <label class="toggle" title="Automatically flip down characters ruled out by each answer">
-        <input type="checkbox" id="autoCross" checked> Auto-flip after answers
-      </label>
       <button class="btn sm ghost" id="btnResetBoard">Reset board</button>
       <button class="btn sm danger" id="btnQuit">Quit</button>
     </div>
@@ -499,11 +517,17 @@
 
         <div class="card">
           <h3>Your turn</h3>
-          <select id="qSelect"></select>
+          <input type="text" id="qInput" class="qask" maxlength="90" autocomplete="off"
+                 placeholder="Ask anything — “do they have a beard?”">
+          <div class="reading" id="qReading">Type a question about your opponent's person.</div>
           <div class="qbtns">
-            <button class="btn primary" id="btnAsk">Ask question</button>
+            <button class="btn primary" id="btnAsk">Ask</button>
             <button class="btn accent" id="btnGuess">Final guess</button>
           </div>
+          <details class="asklist">
+            <summary>What can I ask about?</summary>
+            <div id="askAbout"></div>
+          </details>
           <p class="hint" id="guessHint" style="display:none;margin-top:10px">
             Click a character on your board to guess. Wrong guess = you lose!
             <button class="btn sm ghost" id="btnCancelGuess" style="margin-top:8px">Cancel</button>
@@ -637,6 +661,96 @@ const QUESTIONS = [
 ];
 
 const qById = id => QUESTIONS.find(q => q.id === id);
+
+/* =========================================================
+   2b. UNDERSTANDING A TYPED QUESTION
+
+   Players ask in their own words. Each pattern below names
+   the question it means, plus the groups of words the text
+   has to contain — every group needs at least one hit, so
+   "black hair" and "dark skin" can't be confused for each
+   other while "blonde" on its own still lands.
+   ========================================================= */
+
+const PATTERNS = [
+  {id:"male",   need:[["male","man","men","boy","guy","gentleman","bloke","he","his","him"]]},
+  {id:"female", need:[["female","woman","women","girl","lady","she","her"]]},
+
+  {id:"glasses",   need:[["glasses","spectacles","specs","eyewear","goggles"]]},
+  {id:"hat",       need:[["hat","cap","beanie","headwear","bonnet"]]},
+  {id:"earrings",  need:[["earring","earrings","ear ring","ear rings","studs","jewellery","jewelry"]]},
+
+  {id:"beard",     need:[["beard","bearded","goatee"]]},
+  {id:"moustache", need:[["moustache","mustache","tache","tash","stache","whiskers"]]},
+  {id:"anyFacial", need:[["facial hair","face hair","stubble"]]},
+
+  {id:"eBlue",  need:[["blue"],  ["eye","eyes"]]},
+  {id:"eBrown", need:[["brown","hazel"], ["eye","eyes"]]},
+  {id:"eGreen", need:[["green"], ["eye","eyes"]]},
+
+  {id:"hBlack",  need:[["black","dark","jet"],            ["hair","haired"]]},
+  {id:"hBrown",  need:[["brown","brunette"],              ["hair","haired"]]},
+  {id:"hBlonde", need:[["blonde","blond","fair","yellow"],["hair","haired"]]},
+  {id:"hRed",    need:[["red","ginger","auburn","orange"],["hair","haired"]]},
+  {id:"hGrey",   need:[["grey","gray","white","silver"],  ["hair","haired"]]},
+
+  // distinctive enough to need no "hair" alongside them
+  {id:"hBlonde", need:[["blonde","blond"]]},
+  {id:"hRed",    need:[["ginger","redhead","red head"]]},
+  {id:"hBrown",  need:[["brunette"]]},
+
+  {id:"sLong",  need:[["long"],  ["hair","haired"]]},
+  {id:"sShort", need:[["short"], ["hair","haired"]]},
+  {id:"sCurly", need:[["curly","curls","curled","afro","wavy"]]},
+  {id:"sBald",  need:[["bald","hairless","shaved head","no hair"]]},
+
+  {id:"skinLight", need:[["light","pale","fair","white"],          ["skin","complexion","skinned","skin tone"]]},
+  {id:"skinMed",   need:[["medium","tan","tanned","olive","brown"],["skin","complexion","skinned","skin tone"]]},
+  {id:"skinDark",  need:[["dark","black","deep"],                  ["skin","complexion","skinned","skin tone"]]}
+];
+
+/* "no hair" is bald, not a negated question about hair, so only these
+   explicit forms flip the meaning. */
+const NEGATIONS = ["doesn't", "does not", "dosent", "doesnt", "not have", "isn't",
+                   "is not", "isnt", "hasn't", "has not", "hasnt", "without", "aren't",
+                   "are not", "haven't", "have not"];
+
+function normalise(text){
+  return " " + String(text).toLowerCase().replace(/[^a-z0-9']+/g, " ").replace(/\s+/g, " ").trim() + " ";
+}
+
+/* Returns {q, neg, score} for the best reading of the text, or null. */
+function interpret(text){
+  const s = normalise(text);
+  if (!s.trim()) return null;
+
+  const neg = NEGATIONS.some(n => s.includes(" " + n.replace(/[^a-z0-9' ]/g, "") + " ")
+                               || s.includes(" " + n + " "));
+
+  let best = null;
+  for (const p of PATTERNS){
+    let score = 0, ok = true;
+    for (const group of p.need){
+      // whole words only: a prefix match would read "hello" as "he"
+      const hit = group.find(w => s.includes(" " + w + " "));
+      if (!hit){ ok = false; break; }
+      score += hit.length;
+    }
+    if (!ok) continue;
+    score += p.need.length * 10;          // more groups matched = more specific
+    if (!best || score > best.score) best = {q: qById(p.id), neg: neg, score: score};
+  }
+  return best && best.q ? best : null;
+}
+
+/* How the question reads once understood, for the asker to sanity-check and
+   for the other player to see next to what was actually typed. */
+function readBack(q, neg){
+  if (!neg) return q.text;
+  if (/^Does your person /.test(q.text)) return q.text.replace(/^Does your person /, "Does your person NOT ");
+  if (/^Is your person /.test(q.text))   return q.text.replace(/^Is your person /, "Is your person NOT ");
+  return "NOT — " + q.text;
+}
 
 /* =========================================================
    3. FACE ART — procedural SVG, no image files needed
@@ -783,14 +897,15 @@ const el = {
   board:$("#board"), log:$("#log"),
   turnbar:$("#turnbar"), turnText:$("#turnText"),
   remain:$("#remainCount"), theirRemain:$("#theirCount"),
-  qSelect:$("#qSelect"), btnAsk:$("#btnAsk"), btnGuess:$("#btnGuess"),
+  qInput:$("#qInput"), qReading:$("#qReading"), askAbout:$("#askAbout"),
+  btnAsk:$("#btnAsk"), btnGuess:$("#btnGuess"),
   guessHint:$("#guessHint"),
   secretPic:$("#secretPic"), secretName:$("#secretName"), secretTraits:$("#secretTraits"),
   roomPill:$("#roomPill"), roomPillCode:$("#roomPillCode"),
   connPill:$("#connPill"), connPillText:$("#connPillText"),
   banner:$("#banner"), endModal:$("#endModal"),
   endTitle:$("#endTitle"), endText:$("#endText"), endReveal:$("#endReveal"),
-  rematchNote:$("#rematchNote"), autoCross:$("#autoCross")
+  rematchNote:$("#rematchNote")
 };
 
 function show(name){
@@ -1508,9 +1623,13 @@ function handleMessage(m){
     case "ask": {
       const q = qById(m.qid);
       if (!q || !S.mySecret) return;
-      const yes = !!q.test(S.mySecret);
-      send({t:"answer", qid:m.qid, yes:yes});
-      logLine(`<b>${esc(S.theirName)}</b> asked: ${esc(q.text)} <span class="a ${yes?"y":"n"}">${yes?"YES":"NO"}</span>`,
+      // still answered here, from our own character — asking in your own words
+      // doesn't mean trusting anyone to answer honestly
+      const yes = !!q.test(S.mySecret) !== !!m.neg;
+      send({t:"answer", qid:m.qid, neg:!!m.neg, yes:yes, text:m.text});
+      logLine(`<b>${esc(S.theirName)}</b> asked: “${esc(m.text || q.text)}”<br>`
+            + `<span class="asread">${esc(readBack(q, m.neg))}</span> `
+            + `<span class="a ${yes?"y":"n"}">${yes?"YES":"NO"}</span>`,
               yes ? "yes" : "no");
       S.myTurn = true;                  // answering hands the turn to me
       renderTurn();
@@ -1520,9 +1639,10 @@ function handleMessage(m){
     case "answer": {
       const q = qById(m.qid);
       if (!q) return;
-      logLine(`You asked: ${esc(q.text)} <span class="a ${m.yes?"y":"n"}">${m.yes?"YES":"NO"}</span>`,
+      logLine(`You asked: “${esc(m.text || q.text)}”<br>`
+            + `<span class="asread">${esc(readBack(q, m.neg))}</span> `
+            + `<span class="a ${m.yes?"y":"n"}">${m.yes?"YES":"NO"}</span>`,
               m.yes ? "yes" : "no");
-      if (el.autoCross.checked) autoCross(q, m.yes);
       S.pendingQ = null;
       S.myTurn = false;                 // turn passes to them
       renderTurn();
@@ -1616,6 +1736,8 @@ function startNewGame(iAmHost, guestFirstFromHost){
 
   buildBoard();
   renderSecret();
+  el.qInput.value = "";
+  updateReading();
   buildQuestionList();
   renderTurn();
   show("game");
@@ -1668,40 +1790,44 @@ function onTileClick(c){
   send({t:"eliminated", standing:CHARACTERS.length - S.down.size});
 }
 
-function autoCross(q, answeredYes){
-  let n = 0;
-  CHARACTERS.forEach(c => {
-    if (S.down.has(c.id)) return;
-    const matches = !!q.test(c);
-    if (matches !== answeredYes){ S.down.add(c.id); n++; }
-  });
-  if (n){
-    refreshBoard();
-    send({t:"eliminated", standing:CHARACTERS.length - S.down.size});
-    logLine(`Auto-flipped <b>${n}</b> character${n===1?"":"s"} that can't match.`, "sys");
-  }
-}
-
 function renderSecret(){
   el.secretPic.innerHTML = faceSVG(S.mySecret);
   el.secretName.textContent = S.mySecret.name;
   el.secretTraits.textContent = traitLine(S.mySecret);
 }
 
+/* The reference list is what you can ask *about* — not questions to pick from,
+   since choosing from a menu is the part that makes it dull. */
 function buildQuestionList(){
-  el.qSelect.innerHTML = "";
   const groups = [...new Set(QUESTIONS.map(q => q.group))];
-  groups.forEach(g => {
-    const og = document.createElement("optgroup");
-    og.label = g;
-    QUESTIONS.filter(q => q.group === g).forEach(q => {
-      const o = document.createElement("option");
-      o.value = q.id;
-      o.textContent = q.text;
-      og.appendChild(o);
-    });
-    el.qSelect.appendChild(og);
-  });
+  el.askAbout.innerHTML = groups.map(g =>
+    "<div><b>" + esc(g) + ":</b> " +
+    QUESTIONS.filter(q => q.group === g)
+      .map(q => '<span class="tag">' + esc(q.short || q.text.replace(/^(Does|Is) your person (have |wear |wearing |)/, "").replace(/\?$/, "")) + "</span>")
+      .join("") + "</div>"
+  ).join("");
+}
+
+/* Show what we made of what they typed, before they commit to asking it. */
+function updateReading(){
+  const raw = el.qInput.value;
+  const box = el.qReading;
+  if (!raw.trim()){
+    box.className = "reading";
+    box.textContent = "Type a question about your opponent's person.";
+    S.reading = null;
+    return;
+  }
+  const got = interpret(raw);
+  if (!got){
+    box.className = "reading no";
+    box.textContent = "Not sure what that's asking. Try hair, eyes, skin, glasses, hat, beard, moustache, earrings, or male/female.";
+    S.reading = null;
+    return;
+  }
+  box.className = "reading ok";
+  box.innerHTML = "Asking: <b>" + esc(readBack(got.q, got.neg)) + "</b>";
+  S.reading = got;
 }
 
 function renderTurn(){
@@ -1719,7 +1845,7 @@ function renderTurn(){
 
   el.btnAsk.disabled   = !can;
   el.btnGuess.disabled = !can;
-  el.qSelect.disabled  = !can;
+  el.qInput.disabled   = !can;
 }
 
 function endGame(iWon, detail){
@@ -1863,14 +1989,24 @@ $("#btnQuit").addEventListener("click", () => {
   if (confirm("Leave this game?")){ send({t:"quit"}); leaveToHome(); }
 });
 
-el.btnAsk.addEventListener("click", () => {
+function askTyped(){
   if (!S.myTurn || S.pendingQ) return;
-  const q = qById(el.qSelect.value);
-  if (!q) return;
-  S.pendingQ = q.id;
-  send({t:"ask", qid:q.id});
+  const raw = el.qInput.value.trim();
+  if (!raw){ banner("Type a question first.", true); return; }
+  const got = interpret(raw);
+  if (!got){
+    banner("I couldn't tell what that's asking — try naming a feature like glasses, beard or hair colour.", true);
+    return;
+  }
+  S.pendingQ = got.q.id;
+  send({t:"ask", qid:got.q.id, neg:got.neg, text:raw.slice(0, 90)});
+  el.qInput.value = "";
+  updateReading();
   renderTurn();
-});
+}
+el.btnAsk.addEventListener("click", askTyped);
+el.qInput.addEventListener("input", updateReading);
+el.qInput.addEventListener("keydown", e => { if (e.key === "Enter") askTyped(); });
 
 el.btnGuess.addEventListener("click", () => {
   if (!S.myTurn) return;
@@ -1916,7 +2052,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.10";
+const BUILD = "2026-07-28.11";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */

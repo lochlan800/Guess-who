@@ -8,6 +8,7 @@ node tests/test.js              # gameplay
 node tests/recon.js             # staying connected
 node tests/rendezvous.js        # two tabs meeting in a room
 node tests/manual.js            # manual connect, real WebRTC
+node tests/questions.js         # understanding typed questions
 ```
 
 They need Playwright available (`NODE_PATH` may have to point at a global
@@ -18,6 +19,7 @@ install). Each script exits non-zero on failure and prints one line per check.
 | `test.js` | Rules and UI: the board, questions and answers, auto-flip, guessing, rematch, chat. Two pages with the transport stubbed, so the game logic is exercised without a network. |
 | `recon.js` | Surviving interruptions: re-registering after the connection drops, keeping the same code, and never rebuilding a room that is already healthy. |
 | `rendezvous.js` | Two real tabs meeting over a shared fake signalling network, including the case that matters most — one player's tab freezes, the other takes over the room, and the first reconnects to them. |
+| `questions.js` | Reading typed questions: three dozen real phrasings, the hair-colour-versus-skin-tone traps, negation, that every question is reachable by typing, and that nonsense is refused rather than guessed at. |
 | `manual.js` | Manual connect with **nothing faked**: two tabs complete a real WebRTC handshake by passing the invite and reply blobs between them, then play over the resulting data channel. Runs with no external network, because local candidates are enough for two tabs on one machine. |
 
 The fake network in `rendezvous.js` uses `localStorage` as the peer registry

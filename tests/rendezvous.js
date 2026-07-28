@@ -137,7 +137,8 @@ const openTab = async (ctx, url) => {
   // ask from whichever tab currently holds the turn, then wait for the answer
   const askFrom = async pg => pg.evaluate(() => {
     if (!S.myTurn || document.querySelector('#btnAsk').disabled) return false;
-    document.querySelector('#qSelect').value = 'glasses';
+    document.querySelector('#qInput').value = 'do they wear glasses';
+    updateReading();
     document.querySelector('#btnAsk').click();
     return true;
   });
