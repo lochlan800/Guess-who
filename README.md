@@ -10,9 +10,11 @@ directly over WebRTC, so nothing about your game is stored anywhere.
 
 The whole game is static files, so GitHub Pages will host it for free:
 
-1. Push this branch and merge it into `main`.
-2. On GitHub go to **Settings → Pages**.
-3. Under **Source** pick **Deploy from a branch**, choose `main` and `/ (root)`, and save.
+1. On GitHub go to **Settings → Pages**.
+2. Under **Source** pick **Deploy from a branch**.
+3. Choose the branch holding this code and the `/ (root)` folder, then save.
+   Right now that's `claude/guess-who-multiplayer-h4gyqo`, since it's the only
+   branch in the repository — if you merge it into `main` first, pick `main`.
 4. After a minute your game is live at `https://<your-username>.github.io/Guess-who/`.
 
 That's the link you send people.
