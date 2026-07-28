@@ -44,17 +44,24 @@ browsers. If that server is unreachable or fails to pair you, no code will
 ever work, and there is nothing to fix from this side.
 
 **Connect manually** goes around it. There is no server in the path at all —
-the two of you carry the handshake yourselves:
+the two of you carry the handshake yourselves, in four steps that both
+players see numbered the same way:
 
-1. One player picks **Connect manually → Make an invite** and sends the block
-   of text it produces, by any means at all.
-2. The other picks **Connect manually → I have an invite**, pastes it, and
-   sends back the reply block it produces.
-3. The first player pastes that reply in. The game starts.
+1. **You** tap **Connect manually → Make an invite**, then **Copy message**,
+   and send it however you like.
+2. **They** open the game, tap **Connect manually**, and paste that whole
+   message in. They get a block back.
+3. **They** send that block to you.
+4. **You** paste it in. The game starts.
 
-Two messages each way, and then it plays identically. Worth knowing: this
-still needs a working WebRTC route between the two of you (see mobile data,
-below) — what it removes is the matchmaking server, not the networking.
+What gets copied is a complete message — a link to the game, what to tap, and
+the block itself — so whoever receives it needs no explaining. Paste the whole
+thing at either end; surrounding words are fine, and there is one box that
+works out which half you were sent.
+
+Worth knowing: this still needs a working WebRTC route between the two of you
+(see mobile data, below). What it removes is the matchmaking server, not the
+networking.
 
 ## Turning up at a room
 

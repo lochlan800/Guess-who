@@ -122,6 +122,28 @@
 
   .step{font-size:14px;color:var(--muted);text-align:left;margin:16px 0 6px}
   .step b{color:var(--text)}
+
+  .steps{
+    list-style:none;counter-reset:s;margin:18px 0 6px;padding:0;text-align:left;
+    background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:12px;overflow:hidden
+  }
+  .steps li{
+    counter-increment:s;position:relative;padding:10px 14px 10px 44px;
+    font-size:13.5px;color:var(--muted);border-bottom:1px solid rgba(255,255,255,.06)
+  }
+  .steps li:last-child{border-bottom:0}
+  .steps li::before{
+    content:counter(s);position:absolute;left:12px;top:9px;
+    width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+    background:rgba(255,255,255,.08);font-size:12px;font-weight:bold;color:var(--muted)
+  }
+  .steps li.now{background:rgba(255,202,58,.1);color:var(--text)}
+  .steps li.now::before{background:var(--accent);color:#2b2000}
+  .steps li.done{opacity:.5}
+  .steps li.done::before{content:"✓";background:var(--good);color:#04220c}
+  .who{font-weight:bold;padding:1px 7px;border-radius:999px;font-size:11px;margin-right:6px}
+  .who.you{background:rgba(255,202,58,.2);color:var(--accent)}
+  .who.them{background:rgba(76,201,240,.18);color:var(--accent2)}
   textarea{
     width:100%;background:#12142e;border:1px solid var(--line);color:var(--text);
     border-radius:12px;padding:11px 13px;font-family:ui-monospace,Menlo,Consolas,monospace;
@@ -363,52 +385,38 @@
         in WhatsApp, Messages, or anything else.
       </p>
 
-      <!-- who starts -->
-      <div id="mPick">
-        <div class="choice">
-          <div class="opt">
-            <h3>I'll go first</h3>
-            <p>You make an invite and send it to your friend.</p>
-            <button class="btn primary" id="btnMakeInvite">Make an invite</button>
-          </div>
-          <div class="opt">
-            <h3>They sent me one</h3>
-            <p>Paste the invite they sent you.</p>
-            <button class="btn accent" id="btnHaveInvite">I have an invite</button>
-          </div>
-        </div>
+      <!-- the same four steps for both players, so "step 3" means one thing -->
+      <ol class="steps" id="mSteps">
+        <li data-step="1"><span class="who you">You</span> make an invite and send it</li>
+        <li data-step="2"><span class="who them">Them</span> paste it in, and get a block back</li>
+        <li data-step="3"><span class="who them">Them</span> send that block to you</li>
+        <li data-step="4"><span class="who you">You</span> paste it in — and you're playing</li>
+      </ol>
+
+      <!-- nothing started yet -->
+      <div id="mStart">
+        <button class="btn primary" id="btnMakeInvite">Make an invite</button>
+        <p class="hint">Tap this if you're the one starting. If your friend already
+          sent you something, skip it and paste theirs below.</p>
       </div>
 
-      <!-- A: created an invite -->
-      <div id="mInvite" style="display:none">
-        <p class="step"><b>Step 1</b> — send this whole block to your friend</p>
-        <textarea id="inviteOut" readonly rows="4"></textarea>
+      <!-- whatever we need to hand over next -->
+      <div id="mOut" style="display:none">
+        <p class="step" id="outLabel">Send this to your friend</p>
+        <textarea id="blobOut" readonly rows="5"></textarea>
         <div class="blobrow">
-          <button class="btn accent sm" id="btnCopyInvite">Copy invite</button>
-          <span class="hint" id="inviteState">Preparing…</span>
+          <button class="btn accent sm" id="btnCopyBlob">Copy message</button>
+          <span class="hint" id="outState"></span>
         </div>
-        <p class="step"><b>Step 2</b> — paste their reply here</p>
-        <textarea id="replyIn" rows="4" placeholder="Paste the reply they send back…"></textarea>
-        <div class="blobrow">
-          <button class="btn primary sm" id="btnUseReply">Connect</button>
-        </div>
+        <p class="hint" id="outNext"></p>
       </div>
 
-      <!-- B: received an invite -->
-      <div id="mAnswer" style="display:none">
-        <p class="step"><b>Step 1</b> — paste the invite they sent you</p>
-        <textarea id="inviteIn" rows="4" placeholder="Paste their invite here…"></textarea>
+      <!-- one box, whichever block they were sent -->
+      <div id="mIn">
+        <p class="step" id="inLabel">Paste what your friend sent you</p>
+        <textarea id="blobIn" rows="5" placeholder="Paste their whole message here — extra words are fine…"></textarea>
         <div class="blobrow">
-          <button class="btn primary sm" id="btnMakeReply">Create my reply</button>
-        </div>
-        <div id="replyWrap" style="display:none">
-          <p class="step"><b>Step 2</b> — send this reply back to them</p>
-          <textarea id="replyOut" readonly rows="4"></textarea>
-          <div class="blobrow">
-            <button class="btn accent sm" id="btnCopyReply">Copy reply</button>
-            <span class="hint" id="replyState"></span>
-          </div>
-          <p class="hint">Once they paste it in, the game starts by itself.</p>
+          <button class="btn primary sm" id="btnUseBlob">Use this</button>
         </div>
       </div>
 
@@ -1171,9 +1179,7 @@ async function packBlob(obj){
   return BLOB_PREFIX + "p" + btoa(unescape(encodeURIComponent(json)));
 }
 
-async function unpackBlob(text){
-  const s = String(text).trim().replace(/\s+/g, "");
-  const body = s.startsWith(BLOB_PREFIX) ? s.slice(BLOB_PREFIX.length) : s;
+async function decodeBody(body){
   const mode = body[0], data = body.slice(1);
   if (mode === "z"){
     const bin = atob(data);
@@ -1183,6 +1189,24 @@ async function unpackBlob(text){
   }
   if (mode === "p") return JSON.parse(decodeURIComponent(escape(atob(data))));
   return JSON.parse(atob(body));      // tolerate a bare base64 paste
+}
+
+/* People paste whole chat messages, not tidy tokens: there are instructions
+   above it, the app has wrapped it across lines, and something may have been
+   appended underneath. Dig the payload out of whatever arrives. */
+async function unpackBlob(text){
+  const squashed = String(text).replace(/\s+/g, "");
+  const found = squashed.match(/GW1:([A-Za-z0-9+/=]+)/);
+  const body = found ? found[1] : squashed;
+
+  try { return await decodeBody(body); } catch(e){ /* try harder below */ }
+
+  // A sign-off after the payload ("Sent from my iPhone") looks like more
+  // base64 once the spaces are gone, so peel characters back off the end.
+  for (let cut = 1; cut <= 64 && body.length - cut > 20; cut++){
+    try { return await decodeBody(body.slice(0, body.length - cut)); } catch(e){}
+  }
+  throw new Error("unreadable");
 }
 
 /* Present a data channel with the same surface as a PeerJS connection, so
@@ -1230,17 +1254,41 @@ function newManualPc(){
   return pc;
 }
 
-async function manualMakeInvite(){
-  manualReset();
-  S.manualRole = "inviter";
-  $("#mPick").style.display = "none";
-  $("#mInvite").style.display = "";
-  $("#inviteState").textContent = "Preparing…";
-  $("#inviteOut").value = "";
+function manualStep(n){
+  [...document.querySelectorAll("#mSteps li")].forEach(li => {
+    const s = +li.dataset.step;
+    li.classList.toggle("now",  s === n);
+    li.classList.toggle("done", s <  n);
+  });
+}
 
-  $("#btnCopyInvite").disabled = true;
-  $("#btnUseReply").disabled = true;
-  $("#inviteState").textContent = "Preparing… this takes a few seconds.";
+/* What lands in the other person's chat has to stand on its own: they get no
+   explanation from us, so the message carries the link and the instructions. */
+function inviteMessage(blob){
+  const url = location.origin + location.pathname;
+  return "Let's play Guess Who 🕵️\n\n"
+       + "1. Open this: " + url + "\n"
+       + '2. Tap "Connect manually"\n'
+       + "3. Paste this whole message into the box\n\n"
+       + blob;
+}
+function replyMessage(blob){
+  return "Guess Who — here's my bit 🕵️\n"
+       + "Paste this whole message into your box and we're in.\n\n"
+       + blob;
+}
+
+async function manualMakeInvite(){
+  if (S.manualRole){ banner("You've already made an invite — send that one.", true); return; }
+  S.manualRole = "inviter";
+  manualStep(1);
+  $("#mStart").style.display = "none";
+  $("#mOut").style.display = "";
+  $("#outLabel").innerHTML = "<b>Step 1</b> — send this to your friend";
+  $("#blobOut").value = "";
+  $("#btnCopyBlob").disabled = true;
+  $("#outState").textContent = "Preparing… this takes a few seconds.";
+  $("#inLabel").innerHTML = "<b>Step 4</b> — paste what they send back";
 
   const pc = newManualPc();
   S.pc = pc;
@@ -1249,27 +1297,58 @@ async function manualMakeInvite(){
 
   await pc.setLocalDescription(await pc.createOffer());
   const desc = await gatheredDescription(pc);
-  $("#inviteOut").value = await packBlob({k:"offer", sdp:desc.sdp, n:S.myName});
-  $("#inviteState").textContent = "Ready — send it over.";
-  $("#btnCopyInvite").disabled = false;
-  $("#btnUseReply").disabled = false;
+  S.myBlob = await packBlob({k:"offer", sdp:desc.sdp, n:S.myName});
+  $("#blobOut").value = inviteMessage(S.myBlob);
+  $("#outState").textContent = "Ready — send it over.";
+  $("#outNext").textContent = "They'll send a block back. Paste it in the box below.";
+  $("#btnCopyBlob").disabled = false;
   diag("manual: invite ready");
 }
 
-async function manualMakeReply(){
-  const raw = $("#inviteIn").value.trim();
-  if (!raw){ banner("Paste their invite into the box first.", true); return; }
+/* One box for both blocks — they look identical, so work out which it is
+   rather than making someone choose the right slot. */
+async function manualUseBlob(){
+  const raw = $("#blobIn").value.trim();
+  if (!raw){ banner("Paste their message into the box first.", true); return; }
+
   let msg;
   try { msg = await unpackBlob(raw); }
-  catch(e){ banner("That doesn't look like an invite — copy the whole block and try again.", true); return; }
-  if (!msg || msg.k !== "offer"){ banner("That's not an invite. Make sure you pasted their first message.", true); return; }
+  catch(e){
+    banner("Couldn't read that. Copy their whole message and paste it again.", true);
+    return;
+  }
 
+  if (msg.k === "offer"){
+    if (S.manualRole === "inviter"){
+      banner("You've both made an invite. One of you should tap Back, then paste the other's message.", true);
+      return;
+    }
+    await manualAnswerOffer(msg);
+    return;
+  }
+  if (msg.k === "answer"){
+    if (!S.pc || S.manualRole !== "inviter"){
+      banner("That's the block that comes back to whoever made the invite. Make an invite first.", true);
+      return;
+    }
+    await manualAcceptAnswer(msg);
+    return;
+  }
+  banner("That doesn't look like either half of a Guess Who invite.", true);
+}
+
+async function manualAnswerOffer(msg){
   S.manualRole = "replier";
   S.theirName = (msg.n || "Opponent").slice(0, 14);
-  $("#replyWrap").style.display = "";
-  $("#replyOut").value = "";
-  $("#btnCopyReply").disabled = true;
-  $("#replyState").textContent = "Preparing… this takes a few seconds.";
+  S.isHost = false;                    // whoever invited deals the first turn
+  manualStep(3);
+  $("#mStart").style.display = "none";
+  $("#mIn").style.display = "none";
+  $("#mOut").style.display = "";
+  $("#outLabel").innerHTML = "<b>Step 3</b> — send this back to " + esc(S.theirName);
+  $("#blobOut").value = "";
+  $("#btnCopyBlob").disabled = true;
+  $("#outState").textContent = "Preparing… this takes a few seconds.";
 
   const pc = newManualPc();
   S.pc = pc;
@@ -1279,24 +1358,18 @@ async function manualMakeReply(){
   await pc.setLocalDescription(await pc.createAnswer());
   const desc = await gatheredDescription(pc);
 
-  $("#replyOut").value = await packBlob({k:"answer", sdp:desc.sdp, n:S.myName});
-  $("#replyState").textContent = "Ready — send it back.";
-  $("#btnCopyReply").disabled = false;
-  S.isHost = false;                    // whoever invited runs the game
+  S.myBlob = await packBlob({k:"answer", sdp:desc.sdp, n:S.myName});
+  $("#blobOut").value = replyMessage(S.myBlob);
+  $("#outState").textContent = "Ready — send it back.";
+  $("#outNext").textContent = "Once they paste it in, the game starts on its own. Keep this page open.";
+  $("#btnCopyBlob").disabled = false;
   diag("manual: reply ready");
 }
 
-async function manualUseReply(){
-  const raw = $("#replyIn").value.trim();
-  if (!raw){ banner("Paste their reply into the box first.", true); return; }
-  let msg;
-  try { msg = await unpackBlob(raw); }
-  catch(e){ banner("That doesn't look like a reply — copy the whole block and try again.", true); return; }
-  if (!msg || msg.k !== "answer"){ banner("That's not a reply. They should send the block from their Step 2.", true); return; }
-  if (!S.pc){ banner("Make an invite first.", true); return; }
-
+async function manualAcceptAnswer(msg){
   S.theirName = (msg.n || "Opponent").slice(0, 14);
-  S.isHost = true;                     // the inviter deals the first turn
+  S.isHost = true;
+  manualStep(4);
   await S.pc.setRemoteDescription({type:"answer", sdp:msg.sdp});
   bindConn(S.pendingConn);
   banner("Connecting…");
@@ -1305,12 +1378,15 @@ async function manualUseReply(){
 
 function manualReset(){
   try { if (S.pc) S.pc.close(); } catch(e){}
-  S.pc = null; S.pendingConn = null; S.manualRole = null;
-  $("#mPick").style.display = "";
-  $("#mInvite").style.display = "none";
-  $("#mAnswer").style.display = "none";
-  $("#replyWrap").style.display = "none";
-  ["inviteOut","replyIn","inviteIn","replyOut"].forEach(id => { $("#" + id).value = ""; });
+  S.pc = null; S.pendingConn = null; S.manualRole = null; S.myBlob = "";
+  manualStep(1);
+  $("#mStart").style.display = "";
+  $("#mOut").style.display = "none";
+  $("#mIn").style.display = "";
+  $("#outNext").textContent = "";
+  $("#outState").textContent = "";
+  $("#inLabel").innerHTML = "Paste what your friend sent you";
+  ["blobOut","blobIn"].forEach(id => { $("#" + id).value = ""; });
 }
 
 function bindConn(conn){
@@ -1694,14 +1770,8 @@ $("#btnLobbyManual").addEventListener("click", () => { leaveToHome(); openManual
 $("#btnManualBack").addEventListener("click", () => { manualReset(); show("home"); });
 $("#btnMakeInvite").addEventListener("click", () => { manualMakeInvite().catch(e => {
   console.error(e); banner("Couldn't create an invite: " + e.message, true); }); });
-$("#btnHaveInvite").addEventListener("click", () => {
-  $("#mPick").style.display = "none";
-  $("#mAnswer").style.display = "";
-});
-$("#btnMakeReply").addEventListener("click", () => { manualMakeReply().catch(e => {
-  console.error(e); banner("Couldn't build a reply: " + e.message, true); }); });
-$("#btnUseReply").addEventListener("click", () => { manualUseReply().catch(e => {
-  console.error(e); banner("Couldn't use that reply: " + e.message, true); }); });
+$("#btnUseBlob").addEventListener("click", () => { manualUseBlob().catch(e => {
+  console.error(e); banner("Couldn't use that message: " + e.message, true); }); });
 
 async function copyFrom(sel, okMsg){
   const t = $(sel);
@@ -1709,8 +1779,8 @@ async function copyFrom(sel, okMsg){
   try { await navigator.clipboard.writeText(t.value); banner(okMsg); }
   catch(e){ document.execCommand && document.execCommand("copy"); banner(okMsg); }
 }
-$("#btnCopyInvite").addEventListener("click", () => copyFrom("#inviteOut", "Invite copied — send it to your friend."));
-$("#btnCopyReply").addEventListener("click", () => copyFrom("#replyOut", "Reply copied — send it back to them."));
+$("#btnCopyBlob").addEventListener("click", () =>
+  copyFrom("#blobOut", "Copied — paste it straight into your chat with them."));
 
 $("#diagToggle").addEventListener("click", e => {
   e.preventDefault();
@@ -1783,7 +1853,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.8";
+const BUILD = "2026-07-28.9";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */
