@@ -417,6 +417,7 @@
         <textarea id="blobIn" rows="5" placeholder="Paste their whole message here — extra words are fine…"></textarea>
         <div class="blobrow">
           <button class="btn primary sm" id="btnUseBlob">Use this</button>
+          <span class="hint" id="mStatus"></span>
         </div>
       </div>
 
@@ -763,6 +764,8 @@ const S = {
   pc:null,                // RTCPeerConnection, manual connect only
   pendingConn:null,       // inviter's channel, live once the reply lands
   manualRole:null,
+  manualTimer:null,       // gives up waiting on a connection that isn't coming
+  myBlob:"",
   mySecret:null,          // character object — chosen locally, never sent until reveal
   theirSecret:null,       // only learned at the end
   down:new Set(),         // ids flipped down on my board
@@ -1243,12 +1246,30 @@ function gatheredDescription(pc){
   });
 }
 
+function manualStatus(text, bad){
+  const el2 = document.getElementById("mStatus");
+  if (!el2) return;
+  el2.textContent = text || "";
+  el2.style.color = bad ? "var(--bad)" : "var(--muted)";
+}
+
 function newManualPc(){
   const pc = new RTCPeerConnection({iceServers: ICE_SERVERS});
   pc.oniceconnectionstatechange = () => {
-    diag("ice: " + pc.iceConnectionState);
-    if (pc.iceConnectionState === "failed"){
-      banner("Couldn't open a direct connection — the two networks wouldn't allow it.", true);
+    const st = pc.iceConnectionState;
+    diag("ice: " + st);
+    if (pc !== S.pc) return;
+    if (st === "checking")  manualStatus("Connecting… finding a route between you.");
+    if (st === "connected" || st === "completed"){
+      clearTimeout(S.manualTimer);
+      manualStatus("Connected.");
+    }
+    if (st === "failed"){
+      clearTimeout(S.manualTimer);
+      manualStatus("Couldn't open a route between your two networks.", true);
+      banner("Your networks wouldn't let the two devices reach each other. "
+           + "Try again on wifi, or with mobile data instead.", true);
+      $("#btnUseBlob").disabled = false;
     }
   };
   return pc;
@@ -1307,7 +1328,19 @@ async function manualMakeInvite(){
 
 /* One box for both blocks — they look identical, so work out which it is
    rather than making someone choose the right slot. */
+let manualBusy = false;
+
 async function manualUseBlob(){
+  // Reading the message is asynchronous, so two quick taps can both get past
+  // the state check below before either finishes — and the second one then
+  // fails deep inside WebRTC. Take the lock before awaiting anything.
+  if (manualBusy){ banner("Already working on that — give it a few seconds."); return; }
+  manualBusy = true;
+  try { await manualUseBlobInner(); }
+  finally { manualBusy = false; }
+}
+
+async function manualUseBlobInner(){
   const raw = $("#blobIn").value.trim();
   if (!raw){ banner("Paste their message into the box first.", true); return; }
 
@@ -1329,6 +1362,14 @@ async function manualUseBlob(){
   if (msg.k === "answer"){
     if (!S.pc || S.manualRole !== "inviter"){
       banner("That's the block that comes back to whoever made the invite. Make an invite first.", true);
+      return;
+    }
+    // Applying an answer moves the connection out of "have-local-offer", so a
+    // second tap would throw a raw WebRTC error at someone who was only
+    // impatient. It already worked — say so.
+    if (S.pc.signalingState !== "have-local-offer"){
+      if (S.conn && S.conn.open) banner("You're already connected — the game is starting.");
+      else banner("Already got it — connecting now. Give it a few seconds, no need to tap again.");
       return;
     }
     await manualAcceptAnswer(msg);
@@ -1370,10 +1411,21 @@ async function manualAcceptAnswer(msg){
   S.theirName = (msg.n || "Opponent").slice(0, 14);
   S.isHost = true;
   manualStep(4);
+  $("#btnUseBlob").disabled = true;
+  manualStatus("Connecting… this can take a few seconds.");
   await S.pc.setRemoteDescription({type:"answer", sdp:msg.sdp});
   bindConn(S.pendingConn);
-  banner("Connecting…");
   diag("manual: reply accepted");
+
+  // Without this the screen just sits there if the two networks can't meet.
+  clearTimeout(S.manualTimer);
+  S.manualTimer = setTimeout(() => {
+    if (S.conn && S.conn.open) return;
+    manualStatus("Still trying — your networks may be blocking the connection.", true);
+    banner("This is taking longer than it should. If nothing happens, you're both "
+         + "probably on networks that block direct connections.", true);
+    $("#btnUseBlob").disabled = false;
+  }, 25000);
 }
 
 function manualReset(){
@@ -1394,6 +1446,8 @@ function bindConn(conn){
 
   conn.on("open", () => {
     diag("connected to opponent");
+    clearTimeout(S.manualTimer);
+    manualStatus("");
     stopWatchdog();
     clearTimeout(knockTimer);
     clearTimeout(lonelyTimer);
@@ -1771,7 +1825,16 @@ $("#btnManualBack").addEventListener("click", () => { manualReset(); show("home"
 $("#btnMakeInvite").addEventListener("click", () => { manualMakeInvite().catch(e => {
   console.error(e); banner("Couldn't create an invite: " + e.message, true); }); });
 $("#btnUseBlob").addEventListener("click", () => { manualUseBlob().catch(e => {
-  console.error(e); banner("Couldn't use that message: " + e.message, true); }); });
+  console.error(e);
+  diag("manual error: " + e.message);
+  // WebRTC's own wording ("Called in wrong state: stable") means nothing to
+  // anyone who did not write it, so never show it raw.
+  const m = /wrong state/i.test(e.message)
+    ? "That's already been used — the connection is on its way. Give it a moment."
+    : "Couldn't use that message. Copy their whole message again and retry.";
+  banner(m, true);
+  $("#btnUseBlob").disabled = false;
+}); });
 
 async function copyFrom(sel, okMsg){
   const t = $(sel);
@@ -1853,7 +1916,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.9";
+const BUILD = "2026-07-28.10";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */

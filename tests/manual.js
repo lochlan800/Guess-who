@@ -75,6 +75,19 @@ const waitFor = async (pg, fn, ms = 15000) => {
   await A.fill('#blobIn', reply);
   await A.click('#btnUseBlob');
 
+  // An impatient second tap: the first one worked, so this must not throw raw
+  // WebRTC wording ("Called in wrong state: stable") at a person. Call the
+  // handler directly, since by now the button may already be off screen.
+  await A.evaluate(() => manualUseBlob().catch(e => { window.__rawErr = e.message; }));
+  await A.waitForTimeout(400);
+  const secondTap = await A.evaluate(() => document.querySelector('#banner').textContent);
+  const rawErr = await A.evaluate(() => window.__rawErr || '');
+  check('a second tap raises no raw WebRTC error', rawErr === '', rawErr);
+  check('using the same reply twice is handled kindly',
+        /already/i.test(secondTap) && !/wrong state|RTCPeerConnection|setRemoteDescription/i.test(secondTap),
+        secondTap);
+
+
   check('A connects over the data channel', await waitFor(A, () => !!(S.conn && S.conn.open)));
   check('B connects over the data channel', await waitFor(B, () => !!(S.conn && S.conn.open)));
   check('both reach the game screen',
