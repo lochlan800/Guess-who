@@ -105,6 +105,31 @@
   .home .row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:8px}
   .home .btn{min-width:170px;padding:15px 20px;font-size:16px}
   .joinbox{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+
+  /* two clearly separate ways in, so both players can't take the same one */
+  .choice{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0 4px;text-align:left}
+  @media (max-width:600px){.choice{grid-template-columns:1fr}}
+  .choice .opt{
+    background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:12px;padding:14px;
+    display:flex;flex-direction:column;gap:8px
+  }
+  .choice .opt h3{margin:0;font-size:15px;letter-spacing:.3px}
+  .choice .opt p{margin:0;font-size:13px;color:var(--muted);line-height:1.5;flex:1}
+  .choice .opt .btn{width:100%}
+  .choice .joinbox{margin-top:0;justify-content:stretch}
+  .choice .joinbox input{width:100%;flex:1}
+  .alt{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+
+  .step{font-size:14px;color:var(--muted);text-align:left;margin:16px 0 6px}
+  .step b{color:var(--text)}
+  textarea{
+    width:100%;background:#12142e;border:1px solid var(--line);color:var(--text);
+    border-radius:12px;padding:11px 13px;font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:11.5px;line-height:1.45;resize:vertical;word-break:break-all
+  }
+  textarea:focus{outline:2px solid var(--accent2);outline-offset:1px}
+  .blobrow{display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .blobrow .hint{margin:0}
   input[type=text]{
     background:#171a3a;border:1px solid var(--line);color:var(--text);
     padding:13px 16px;border-radius:12px;font-size:18px;font-family:inherit;
@@ -267,6 +292,13 @@
   .build{opacity:.75;font-family:ui-monospace,Menlo,Consolas,monospace}
   #serverTag.ok{color:var(--good)}
   #serverTag.bad{color:var(--bad)}
+  #diagToggle{color:var(--muted)}
+  #diagPanel{max-width:620px;margin:10px auto 0;text-align:left}
+  #diagLog{
+    background:#12142e;border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;font-size:11px;line-height:1.5;max-height:220px;overflow:auto;
+    white-space:pre-wrap;word-break:break-word;margin:0 0 8px;color:var(--muted)
+  }
 </style>
 </head>
 <body>
@@ -294,19 +326,95 @@
         <input type="text" class="name" id="nameInput" placeholder="Your name" maxlength="14">
       </div>
 
-      <div class="row">
-        <button class="btn primary" id="btnCreate">Create a room</button>
-      </div>
-
-      <div class="joinbox">
-        <input type="text" id="codeInput" placeholder="CODE" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
-        <button class="btn accent" id="btnJoin">Join</button>
+      <div class="choice">
+        <div class="opt">
+          <h3>Start a room</h3>
+          <p>You get a code. Send it to your friend so they can join <em>your</em> room.</p>
+          <button class="btn primary" id="btnCreate">Start a room</button>
+        </div>
+        <div class="opt">
+          <h3>Join their room</h3>
+          <p>Your friend sent you a code? Type it here. Don't start your own.</p>
+          <div class="joinbox">
+            <input type="text" id="codeInput" placeholder="CODE" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <button class="btn accent" id="btnJoin">Join</button>
+          </div>
+        </div>
       </div>
 
       <p class="hint">
-        24 characters, one secret each. Take turns asking yes/no questions,<br>
-        flip down everyone who doesn't match, and be first to name your opponent's person.
+        Only one of you starts a room — if you both start one, you'll be sitting
+        in separate rooms waiting for each other.
       </p>
+
+      <div class="alt">
+        <p class="hint" style="margin:0 0 8px">Codes not working? There's a way in that uses no server at all:</p>
+        <button class="btn ghost sm" id="btnManual">Connect manually instead</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MANUAL CONNECT ================= -->
+  <section class="screen" id="scManual">
+    <div class="card home" style="max-width:720px">
+      <h2 style="margin:.1em 0 .3em">Connect manually</h2>
+      <p class="sub" style="font-size:15px">
+        No codes, no matchmaking server — you just swap two blocks of text
+        in WhatsApp, Messages, or anything else.
+      </p>
+
+      <!-- who starts -->
+      <div id="mPick">
+        <div class="choice">
+          <div class="opt">
+            <h3>I'll go first</h3>
+            <p>You make an invite and send it to your friend.</p>
+            <button class="btn primary" id="btnMakeInvite">Make an invite</button>
+          </div>
+          <div class="opt">
+            <h3>They sent me one</h3>
+            <p>Paste the invite they sent you.</p>
+            <button class="btn accent" id="btnHaveInvite">I have an invite</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- A: created an invite -->
+      <div id="mInvite" style="display:none">
+        <p class="step"><b>Step 1</b> — send this whole block to your friend</p>
+        <textarea id="inviteOut" readonly rows="4"></textarea>
+        <div class="blobrow">
+          <button class="btn accent sm" id="btnCopyInvite">Copy invite</button>
+          <span class="hint" id="inviteState">Preparing…</span>
+        </div>
+        <p class="step"><b>Step 2</b> — paste their reply here</p>
+        <textarea id="replyIn" rows="4" placeholder="Paste the reply they send back…"></textarea>
+        <div class="blobrow">
+          <button class="btn primary sm" id="btnUseReply">Connect</button>
+        </div>
+      </div>
+
+      <!-- B: received an invite -->
+      <div id="mAnswer" style="display:none">
+        <p class="step"><b>Step 1</b> — paste the invite they sent you</p>
+        <textarea id="inviteIn" rows="4" placeholder="Paste their invite here…"></textarea>
+        <div class="blobrow">
+          <button class="btn primary sm" id="btnMakeReply">Create my reply</button>
+        </div>
+        <div id="replyWrap" style="display:none">
+          <p class="step"><b>Step 2</b> — send this reply back to them</p>
+          <textarea id="replyOut" readonly rows="4"></textarea>
+          <div class="blobrow">
+            <button class="btn accent sm" id="btnCopyReply">Copy reply</button>
+            <span class="hint" id="replyState"></span>
+          </div>
+          <p class="hint">Once they paste it in, the game starts by itself.</p>
+        </div>
+      </div>
+
+      <div style="margin-top:20px">
+        <button class="btn ghost sm" id="btnManualBack">Back</button>
+      </div>
     </div>
   </section>
 
@@ -329,6 +437,15 @@
         Send the code, then leave this open. If you get pulled away, your
         friend holds the room until you're back.
       </p>
+
+      <div id="lonely" style="display:none">
+        <p class="hint" style="color:var(--accent);margin-bottom:10px">
+          Still nobody here. Your friend has to type <b id="lonelyCode">----</b> and press
+          <b>Join</b> — if they pressed <b>Start a room</b> they're sitting in a different
+          room of their own.
+        </p>
+        <button class="btn accent sm" id="btnLobbyManual">Connect manually instead</button>
+      </div>
 
       <div style="margin-top:22px">
         <button class="btn ghost sm" id="btnLeaveLobby">Cancel</button>
@@ -399,7 +516,12 @@
   <div class="footer">
     Peer-to-peer — no accounts, no server storing your games.<br>
     <span id="buildTag" class="build">build —</span> ·
-    matchmaking <span id="serverTag">checking…</span>
+    matchmaking <span id="serverTag">checking…</span> ·
+    <a href="#" id="diagToggle">details</a>
+    <div id="diagPanel" style="display:none">
+      <pre id="diagLog"></pre>
+      <button class="btn sm ghost" id="btnCopyDiag">Copy details</button>
+    </div>
   </div>
 </div>
 
@@ -630,6 +752,9 @@ const S = {
   roomLive:false,         // is our code actually registered right now?
   myName:"You", theirName:"Opponent",
   lastErr:"",             // last PeerJS error type, shown when things fail
+  pc:null,                // RTCPeerConnection, manual connect only
+  pendingConn:null,       // inviter's channel, live once the reply lands
+  manualRole:null,
   mySecret:null,          // character object — chosen locally, never sent until reveal
   theirSecret:null,       // only learned at the end
   down:new Set(),         // ids flipped down on my board
@@ -643,7 +768,7 @@ const S = {
 
 const $ = sel => document.querySelector(sel);
 const el = {
-  screens:{home:$("#scHome"), lobby:$("#scLobby"), game:$("#scGame")},
+  screens:{home:$("#scHome"), manual:$("#scManual"), lobby:$("#scLobby"), game:$("#scGame")},
   board:$("#board"), log:$("#log"),
   turnbar:$("#turnbar"), turnText:$("#turnText"),
   remain:$("#remainCount"), theirRemain:$("#theirCount"),
@@ -680,6 +805,18 @@ function logLine(html, cls){
 }
 
 const esc = s => String(s).replace(/[<>&"]/g, ch => ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[ch]));
+
+/* A running account of what the connection actually did, so a failure can be
+   handed over in one tap instead of being described from memory. */
+const DIAG = [];
+const T0 = Date.now();
+function diag(msg){
+  const line = "+" + ((Date.now() - T0) / 1000).toFixed(1) + "s  " + msg;
+  DIAG.push(line);
+  if (DIAG.length > 200) DIAG.shift();
+  const box = document.getElementById("diagLog");
+  if (box) box.textContent = DIAG.join("\n");
+}
 
 /* =========================================================
    5. NETWORKING (PeerJS / WebRTC)
@@ -866,6 +1003,7 @@ function attachHostHandlers(peer, code, attempt){
 const MAX_ROUNDS = 6;      // seek -> host alternations before giving up
 let   rounds     = 0;
 let   knockTimer = null;
+let   lonelyTimer= null;
 
 function showLobbyFor(code){
   S.phase = "lobby";
@@ -885,6 +1023,17 @@ function enterRoom(code){
   S.roomLive = false;
   showLobbyFor(code);
   $("#lobbyStatus").textContent = "Looking for " + code + "…";
+  diag("room: entering " + code);
+
+  // Two people can each start their own room and wait for each other forever.
+  // Say so rather than spinning silently.
+  $("#lonely").style.display = "none";
+  $("#lonelyCode").textContent = code;
+  clearTimeout(lonelyTimer);
+  lonelyTimer = setTimeout(() => {
+    if (S.phase === "lobby" && !(S.conn && S.conn.open)) $("#lonely").style.display = "";
+  }, 25000);
+
   keepAwake();
   startWatchdog(25000, "Couldn't reach the matchmaking server. Check your connection and try again.");
   seek(code);
@@ -994,12 +1143,185 @@ function peerError(err){
   if (S.phase === "lobby") leaveToHome();
 }
 
+/* =========================================================
+   5b. MANUAL CONNECT — no matchmaking server involved
+
+   The two browsers still have to find a route to each other,
+   but nothing has to introduce them: the players carry the
+   handshake themselves, pasting it through whatever chat app
+   they already use. Removes the one component that has to be
+   up and working for a code to mean anything.
+   ========================================================= */
+
+const BLOB_PREFIX = "GW1:";
+
+/* SDP is long and highly repetitive, and it has to survive being pasted
+   into a chat app, so squeeze it when the browser can. */
+async function packBlob(obj){
+  const json = JSON.stringify(obj);
+  try {
+    if (typeof CompressionStream === "function"){
+      const cs = new Blob([json]).stream().pipeThrough(new CompressionStream("deflate"));
+      const buf = new Uint8Array(await new Response(cs).arrayBuffer());
+      let bin = "";
+      buf.forEach(b => bin += String.fromCharCode(b));
+      return BLOB_PREFIX + "z" + btoa(bin);
+    }
+  } catch(e){ /* fall through to the plain form */ }
+  return BLOB_PREFIX + "p" + btoa(unescape(encodeURIComponent(json)));
+}
+
+async function unpackBlob(text){
+  const s = String(text).trim().replace(/\s+/g, "");
+  const body = s.startsWith(BLOB_PREFIX) ? s.slice(BLOB_PREFIX.length) : s;
+  const mode = body[0], data = body.slice(1);
+  if (mode === "z"){
+    const bin = atob(data);
+    const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+    const ds = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+    return JSON.parse(await new Response(ds).text());
+  }
+  if (mode === "p") return JSON.parse(decodeURIComponent(escape(atob(data))));
+  return JSON.parse(atob(body));      // tolerate a bare base64 paste
+}
+
+/* Present a data channel with the same surface as a PeerJS connection, so
+   bindConn and the whole game protocol work over it unchanged. */
+function wrapChannel(ch, pc){
+  const h = {};
+  const conn = {
+    open: false,
+    _pc: pc,
+    on(ev, fn){ (h[ev] = h[ev] || []).push(fn); },
+    _emit(ev, a){ (h[ev] || []).forEach(f => f(a)); },
+    send(obj){ try { ch.send(JSON.stringify(obj)); } catch(e){ console.error("send failed", e); } },
+    close(){ try { ch.close(); } catch(e){} try { pc.close(); } catch(e){} }
+  };
+  ch.onopen    = () => { conn.open = true; conn._emit("open"); };
+  ch.onclose   = () => { conn.open = false; conn._emit("close"); };
+  ch.onmessage = e => {
+    let m; try { m = JSON.parse(e.data); } catch(err){ return; }
+    conn._emit("data", m);
+  };
+  return conn;
+}
+
+/* Gather every candidate before handing over the blob, so one paste carries
+   the entire handshake — there is no channel to trickle a second one down. */
+function gatheredDescription(pc){
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; resolve(pc.localDescription); };
+    if (pc.iceGatheringState === "complete") return finish();
+    pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === "complete") finish(); };
+    pc.onicecandidate = e => { if (!e.candidate) finish(); };
+    setTimeout(finish, 4000);   // relay candidates can be slow; don't wait forever
+  });
+}
+
+function newManualPc(){
+  const pc = new RTCPeerConnection({iceServers: ICE_SERVERS});
+  pc.oniceconnectionstatechange = () => {
+    diag("ice: " + pc.iceConnectionState);
+    if (pc.iceConnectionState === "failed"){
+      banner("Couldn't open a direct connection — the two networks wouldn't allow it.", true);
+    }
+  };
+  return pc;
+}
+
+async function manualMakeInvite(){
+  manualReset();
+  S.manualRole = "inviter";
+  $("#mPick").style.display = "none";
+  $("#mInvite").style.display = "";
+  $("#inviteState").textContent = "Preparing…";
+  $("#inviteOut").value = "";
+
+  $("#btnCopyInvite").disabled = true;
+  $("#btnUseReply").disabled = true;
+  $("#inviteState").textContent = "Preparing… this takes a few seconds.";
+
+  const pc = newManualPc();
+  S.pc = pc;
+  const ch = pc.createDataChannel("guesswho", {ordered:true});
+  S.pendingConn = wrapChannel(ch, pc);
+
+  await pc.setLocalDescription(await pc.createOffer());
+  const desc = await gatheredDescription(pc);
+  $("#inviteOut").value = await packBlob({k:"offer", sdp:desc.sdp, n:S.myName});
+  $("#inviteState").textContent = "Ready — send it over.";
+  $("#btnCopyInvite").disabled = false;
+  $("#btnUseReply").disabled = false;
+  diag("manual: invite ready");
+}
+
+async function manualMakeReply(){
+  const raw = $("#inviteIn").value.trim();
+  if (!raw){ banner("Paste their invite into the box first.", true); return; }
+  let msg;
+  try { msg = await unpackBlob(raw); }
+  catch(e){ banner("That doesn't look like an invite — copy the whole block and try again.", true); return; }
+  if (!msg || msg.k !== "offer"){ banner("That's not an invite. Make sure you pasted their first message.", true); return; }
+
+  S.manualRole = "replier";
+  S.theirName = (msg.n || "Opponent").slice(0, 14);
+  $("#replyWrap").style.display = "";
+  $("#replyOut").value = "";
+  $("#btnCopyReply").disabled = true;
+  $("#replyState").textContent = "Preparing… this takes a few seconds.";
+
+  const pc = newManualPc();
+  S.pc = pc;
+  pc.ondatachannel = e => { bindConn(wrapChannel(e.channel, pc)); };
+
+  await pc.setRemoteDescription({type:"offer", sdp:msg.sdp});
+  await pc.setLocalDescription(await pc.createAnswer());
+  const desc = await gatheredDescription(pc);
+
+  $("#replyOut").value = await packBlob({k:"answer", sdp:desc.sdp, n:S.myName});
+  $("#replyState").textContent = "Ready — send it back.";
+  $("#btnCopyReply").disabled = false;
+  S.isHost = false;                    // whoever invited runs the game
+  diag("manual: reply ready");
+}
+
+async function manualUseReply(){
+  const raw = $("#replyIn").value.trim();
+  if (!raw){ banner("Paste their reply into the box first.", true); return; }
+  let msg;
+  try { msg = await unpackBlob(raw); }
+  catch(e){ banner("That doesn't look like a reply — copy the whole block and try again.", true); return; }
+  if (!msg || msg.k !== "answer"){ banner("That's not a reply. They should send the block from their Step 2.", true); return; }
+  if (!S.pc){ banner("Make an invite first.", true); return; }
+
+  S.theirName = (msg.n || "Opponent").slice(0, 14);
+  S.isHost = true;                     // the inviter deals the first turn
+  await S.pc.setRemoteDescription({type:"answer", sdp:msg.sdp});
+  bindConn(S.pendingConn);
+  banner("Connecting…");
+  diag("manual: reply accepted");
+}
+
+function manualReset(){
+  try { if (S.pc) S.pc.close(); } catch(e){}
+  S.pc = null; S.pendingConn = null; S.manualRole = null;
+  $("#mPick").style.display = "";
+  $("#mInvite").style.display = "none";
+  $("#mAnswer").style.display = "none";
+  $("#replyWrap").style.display = "none";
+  ["inviteOut","replyIn","inviteIn","replyOut"].forEach(id => { $("#" + id).value = ""; });
+}
+
 function bindConn(conn){
   S.conn = conn;
 
   conn.on("open", () => {
+    diag("connected to opponent");
     stopWatchdog();
     clearTimeout(knockTimer);
+    clearTimeout(lonelyTimer);
+    $("#lonely").style.display = "none";
     clearTimeout(rehostTimer); rehostTimer = null;
     releaseAwake();
     el.connPill.style.display = "";
@@ -1305,14 +1627,18 @@ function leaveToHome(){
   stopWatchdog();
   clearTimeout(knockTimer);
   clearTimeout(rehostTimer); rehostTimer = null;
+  clearTimeout(lonelyTimer);
+  $("#lonely").style.display = "none";
   releaseAwake();
   // clear state first, so teardown events don't look like a live room dying
-  const oldConn = S.conn, oldPeer = S.peer;
-  S.conn = S.peer = null;
+  const oldConn = S.conn, oldPeer = S.peer, oldPc = S.pc;
+  S.conn = S.peer = S.pc = null;
+  S.pendingConn = null;
   S.phase = "home";
   S.roomLive = false;
   try { if (oldConn) oldConn.close(); } catch(e){}
   try { if (oldPeer) oldPeer.destroy(); } catch(e){}
+  try { if (oldPc) oldPc.close(); } catch(e){}
   el.roomPill.style.display = "none";
   el.connPill.style.display = "none";
   el.endModal.classList.remove("on");
@@ -1353,6 +1679,49 @@ $("#btnCopy").addEventListener("click", async () => {
   } catch(e){
     banner("Copy failed — select the link and copy it manually.", true);
   }
+});
+
+/* ---- manual connect ---- */
+function openManual(){
+  S.myName = myNameFromInput();
+  localStorage.setItem("gw_name", S.myName);
+  manualReset();
+  show("manual");
+  diag("manual: opened");
+}
+$("#btnManual").addEventListener("click", openManual);
+$("#btnLobbyManual").addEventListener("click", () => { leaveToHome(); openManual(); });
+$("#btnManualBack").addEventListener("click", () => { manualReset(); show("home"); });
+$("#btnMakeInvite").addEventListener("click", () => { manualMakeInvite().catch(e => {
+  console.error(e); banner("Couldn't create an invite: " + e.message, true); }); });
+$("#btnHaveInvite").addEventListener("click", () => {
+  $("#mPick").style.display = "none";
+  $("#mAnswer").style.display = "";
+});
+$("#btnMakeReply").addEventListener("click", () => { manualMakeReply().catch(e => {
+  console.error(e); banner("Couldn't build a reply: " + e.message, true); }); });
+$("#btnUseReply").addEventListener("click", () => { manualUseReply().catch(e => {
+  console.error(e); banner("Couldn't use that reply: " + e.message, true); }); });
+
+async function copyFrom(sel, okMsg){
+  const t = $(sel);
+  t.select();
+  try { await navigator.clipboard.writeText(t.value); banner(okMsg); }
+  catch(e){ document.execCommand && document.execCommand("copy"); banner(okMsg); }
+}
+$("#btnCopyInvite").addEventListener("click", () => copyFrom("#inviteOut", "Invite copied — send it to your friend."));
+$("#btnCopyReply").addEventListener("click", () => copyFrom("#replyOut", "Reply copied — send it back to them."));
+
+$("#diagToggle").addEventListener("click", e => {
+  e.preventDefault();
+  const p = $("#diagPanel");
+  p.style.display = p.style.display === "none" ? "" : "none";
+  $("#diagLog").textContent = DIAG.join("\n");
+});
+$("#btnCopyDiag").addEventListener("click", async () => {
+  const text = "Guess Who " + BUILD + "\n" + navigator.userAgent + "\n\n" + DIAG.join("\n");
+  try { await navigator.clipboard.writeText(text); banner("Details copied."); }
+  catch(e){ banner("Couldn't copy — select the text instead.", true); }
 });
 
 $("#btnLeaveLobby").addEventListener("click", leaveToHome);
@@ -1414,7 +1783,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.7";
+const BUILD = "2026-07-28.8";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */
@@ -1424,8 +1793,9 @@ function probeServer(){
   const finish = (ok, why) => {
     if (done) return;
     done = true;
-    tag.textContent = ok ? "reachable" : "unreachable" + (why ? " (" + why + ")" : "");
+    tag.textContent = ok ? "working" : "not working" + (why ? " (" + why + ")" : "");
     tag.className = ok ? "ok" : "bad";
+    diag("matchmaking " + (ok ? "reachable" : "unreachable " + (why || "")));
     try { probe && probe.destroy(); } catch(e){}
   };
   try { probe = new Peer(undefined, {debug:0, config:{iceServers:ICE_SERVERS}}); }
@@ -1462,8 +1832,10 @@ function probeServer(){
     $("#codeInput").value = code;
     if (code.length === 4){
       S.myName = saved || "Player";
-      $("#serverTag").textContent = "connecting…";
       enterRoom(code);
+      // still probe: arriving by link is exactly the case where we most need
+      // to know whether the server is reachable at all
+      setTimeout(probeServer, 1500);
       return;
     }
   }

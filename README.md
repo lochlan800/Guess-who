@@ -37,6 +37,25 @@ example `npx http-server` — and open the address it prints. Opening
   tile to flip it down or back up yourself.
 - When you think you know, use **Final guess**. Right, you win. Wrong, you lose.
 
+## Connect manually — when codes won't work
+
+Room codes rely on a free public matchmaking server to introduce the two
+browsers. If that server is unreachable or fails to pair you, no code will
+ever work, and there is nothing to fix from this side.
+
+**Connect manually** goes around it. There is no server in the path at all —
+the two of you carry the handshake yourselves:
+
+1. One player picks **Connect manually → Make an invite** and sends the block
+   of text it produces, by any means at all.
+2. The other picks **Connect manually → I have an invite**, pastes it, and
+   sends back the reply block it produces.
+3. The first player pastes that reply in. The game starts.
+
+Two messages each way, and then it plays identically. Worth knowing: this
+still needs a working WebRTC route between the two of you (see mobile data,
+below) — what it removes is the matchmaking server, not the networking.
+
 ## Turning up at a room
 
 Neither player owns the room. You both walk up to the same code: whoever gets
