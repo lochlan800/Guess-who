@@ -61,8 +61,13 @@ have the host cancel and create a fresh room.
   unambiguous when read out loud.
 - The two browsers find each other through PeerJS's free public signalling
   server, which is used only to introduce them — the game traffic itself is
-  direct. Very restrictive networks or VPNs can block peer-to-peer connections;
-  if a connection can't be made the game says so rather than hanging.
+  direct. If a connection can't be made the game says so rather than hanging.
+- Mobile data works. Carriers put phones behind carrier-grade NAT, which often
+  rules out a direct browser-to-browser path, so the game also lists TURN relay
+  servers and falls back to relaying through one. A relayed game is slower to
+  set up but plays identically — a turn is a few bytes, not a video call. Those
+  relays are free shared services, so they are the most likely thing to be
+  flaky; the game is only using them when no direct route exists.
 - `vendor/peerjs.min.js` is checked in deliberately, so the site has no
   external dependencies at runtime.
 

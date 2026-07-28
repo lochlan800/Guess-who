@@ -685,8 +685,30 @@ function makeCode(){
   return s;
 }
 
+/* Mobile carriers sit behind carrier-grade NAT, so two players on mobile data
+   often can't open a direct path to each other. STUN discovers the direct
+   route where one exists; the TURN relays carry the game when it doesn't.
+   ICE tries them all at once and keeps whatever answers first, so listing
+   extras costs nothing when they're unreachable. */
+const ICE_SERVERS = [
+  {urls:[
+    "stun:stun.l.google.com:19302",
+    "stun:stun1.l.google.com:19302",
+    "stun:stun2.l.google.com:19302"
+  ]},
+  // PeerJS's own public relays — its defaults, pinned here so an upgrade
+  // can't silently take them away
+  {urls:"turn:eu-0.turn.peerjs.com:3478", username:"peerjs", credential:"peerjsp"},
+  {urls:"turn:us-0.turn.peerjs.com:3478", username:"peerjs", credential:"peerjsp"},
+  // Open Relay's free relays. The 443 entries matter on networks that only
+  // let 443 out, which is the usual shape of locked-down office wifi.
+  {urls:"turn:openrelay.metered.ca:80",  username:"openrelayproject", credential:"openrelayproject"},
+  {urls:"turn:openrelay.metered.ca:443", username:"openrelayproject", credential:"openrelayproject"},
+  {urls:"turns:openrelay.metered.ca:443?transport=tcp", username:"openrelayproject", credential:"openrelayproject"}
+];
+
 function newPeer(id){
-  return new Peer(id, {debug:1});
+  return new Peer(id, {debug:1, config:{iceServers:ICE_SERVERS, sdpSemantics:"unified-plan"}});
 }
 
 /* If the signalling server can't be reached the peer just never opens, so
