@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guess Who — Online</title>
+<meta name="description" content="Play Guess Who online with a friend. Create a room code, share it, and play.">
+<meta name="theme-color" content="#14162b">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
+<style>
+  :root{
+    --bg:#12142a;
+    --bg2:#1b1e3d;
+    --panel:#232752;
+    --panel2:#2c3163;
+    --line:#3a4080;
+    --text:#eef0ff;
+    --muted:#a3a9d4;
+    --accent:#ffca3a;
+    --accent2:#4cc9f0;
+    --good:#5ddc7a;
+    --bad:#ff6b6b;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:"Trebuchet MS",Verdana,Segoe UI,system-ui,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(1200px 700px at 15% -10%, #2a2f66 0%, transparent 60%),
+      radial-gradient(900px 600px at 110% 10%, #3a2a5e 0%, transparent 55%),
+      var(--bg);
+    min-height:100%;
+    -webkit-text-size-adjust:100%;
+  }
+  button{font-family:inherit}
+  .wrap{max-width:1180px;margin:0 auto;padding:16px}
+
+  /* ---------- Header ---------- */
+  header.top{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:6px 2px 14px;
+  }
+  .logo{
+    font-size:26px;font-weight:bold;letter-spacing:.5px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .logo .dot{
+    width:34px;height:34px;border-radius:10px;
+    background:linear-gradient(140deg,var(--accent),#ff8f3a);
+    display:grid;place-items:center;font-size:19px;box-shadow:var(--shadow)
+  }
+  .spacer{flex:1}
+  .pill{
+    background:var(--panel);border:1px solid var(--line);
+    padding:6px 12px;border-radius:999px;font-size:13px;color:var(--muted)
+  }
+  .pill b{color:var(--text)}
+  .pill.live b{color:var(--good)}
+  .pill.dead b{color:var(--bad)}
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    background:linear-gradient(180deg,var(--panel2),var(--panel));
+    color:var(--text);border:1px solid var(--line);
+    padding:11px 18px;border-radius:12px;font-size:15px;font-weight:bold;
+    cursor:pointer;transition:transform .08s ease, filter .15s ease;
+  }
+  .btn:hover:not(:disabled){filter:brightness(1.18)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{
+    background:linear-gradient(180deg,#ffd15c,#f5a623);
+    color:#2b2000;border-color:#ffdf8a;
+  }
+  .btn.accent{background:linear-gradient(180deg,#67d7f5,#2fa7cd);color:#04222c;border-color:#8fe6ff}
+  .btn.danger{background:linear-gradient(180deg,#ff8080,#e04a4a);color:#3b0000;border-color:#ffa5a5}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:7px 12px;font-size:13px;border-radius:10px}
+
+  /* ---------- Screens ---------- */
+  .screen{display:none;animation:fade .25s ease}
+  .screen.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .card{
+    background:linear-gradient(180deg,rgba(44,49,99,.85),rgba(35,39,82,.85));
+    border:1px solid var(--line);border-radius:var(--r);
+    padding:20px;box-shadow:var(--shadow);
+  }
+  .home{max-width:640px;margin:4vh auto 0;text-align:center}
+  .facestrip{display:flex;gap:8px;justify-content:center;margin:-4px 0 14px;flex-wrap:wrap}
+  .facestrip .f{
+    width:62px;border-radius:10px;overflow:hidden;border:2px solid #b9ab86;
+    background:#f6f1e4;box-shadow:0 3px 0 rgba(0,0,0,.3);
+    transform:rotate(var(--rot));
+  }
+  .facestrip .f svg{display:block;width:100%;height:auto}
+  @media (max-width:520px){.facestrip .f:nth-child(n+5){display:none}}
+  .home h1{font-size:clamp(30px,6vw,46px);margin:.2em 0}
+  .home p.sub{color:var(--muted);font-size:16px;line-height:1.55;margin:0 0 22px}
+  .home .row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+  .home .btn{min-width:170px;padding:15px 20px;font-size:16px}
+  .joinbox{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+  input[type=text]{
+    background:#171a3a;border:1px solid var(--line);color:var(--text);
+    padding:13px 16px;border-radius:12px;font-size:18px;font-family:inherit;
+    text-align:center;letter-spacing:3px;text-transform:uppercase;width:190px;
+  }
+  input[type=text]:focus{outline:2px solid var(--accent2);outline-offset:1px}
+  input.name{letter-spacing:0;text-transform:none;text-align:left;width:220px;font-size:15px}
+  .hint{color:var(--muted);font-size:13px;margin-top:14px;line-height:1.5}
+
+  /* ---------- Lobby / code ---------- */
+  .codebig{
+    font-size:clamp(42px,11vw,68px);font-weight:bold;letter-spacing:12px;
+    color:var(--accent);margin:10px 0 4px;text-shadow:0 4px 18px rgba(255,202,58,.28);
+  }
+  .waiting{color:var(--muted);display:flex;align-items:center;gap:10px;justify-content:center;margin-top:6px}
+  .spin{
+    width:16px;height:16px;border-radius:50%;
+    border:3px solid rgba(255,255,255,.2);border-top-color:var(--accent);
+    animation:spin 1s linear infinite
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sharefield{
+    display:flex;gap:8px;margin:16px auto 0;max-width:520px;
+  }
+  .sharefield .url{
+    flex:1;background:#171a3a;border:1px solid var(--line);border-radius:12px;
+    padding:11px 14px;font-size:13px;color:var(--muted);overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;text-align:left
+  }
+
+  /* ---------- Game layout ---------- */
+  .gamegrid{display:grid;grid-template-columns:1fr 330px;gap:16px;align-items:start}
+  @media (max-width:900px){.gamegrid{grid-template-columns:1fr}}
+
+  .turnbar{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:12px 16px;border-radius:var(--r);margin-bottom:14px;
+    background:linear-gradient(180deg,rgba(44,49,99,.9),rgba(35,39,82,.9));
+    border:1px solid var(--line);box-shadow:var(--shadow)
+  }
+  .turnbar .status{font-size:17px;font-weight:bold}
+  .turnbar.mine{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow)}
+  .turnbar.mine .status{color:var(--accent)}
+  .turnbar.theirs .status{color:var(--muted)}
+
+  /* ---------- Board ---------- */
+  .board{
+    display:grid;grid-template-columns:repeat(6,1fr);gap:10px;
+  }
+  @media (max-width:760px){.board{grid-template-columns:repeat(4,1fr);gap:8px}}
+  @media (max-width:380px){.board{grid-template-columns:repeat(3,1fr)}}
+
+  .tile{
+    position:relative;border:0;padding:0;background:none;cursor:pointer;
+    perspective:700px;
+  }
+  .tile .inner{
+    background:linear-gradient(180deg,#f6f1e4,#e5dcc6);
+    border:2px solid #b9ab86;border-radius:12px;overflow:hidden;
+    box-shadow:0 4px 0 rgba(0,0,0,.35), var(--shadow);
+    transition:transform .28s cubic-bezier(.34,1.4,.5,1), filter .25s, opacity .25s;
+    transform-origin:top center;
+  }
+  .tile svg{display:block;width:100%;height:auto}
+  .tile .nm{
+    font-size:12px;font-weight:bold;color:#3c3323;background:#d9cdae;
+    padding:4px 2px;text-align:center;letter-spacing:.3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+  }
+  .tile.down .inner{transform:rotateX(-72deg);filter:grayscale(1) brightness(.55);opacity:.55}
+  .tile.down::after{
+    content:"";position:absolute;inset:0;border-radius:12px;
+    background:repeating-linear-gradient(45deg,rgba(0,0,0,.28) 0 10px,rgba(0,0,0,.12) 10px 20px);
+    border:2px dashed rgba(255,255,255,.18);
+  }
+  .tile:hover:not(.down) .inner{filter:brightness(1.06)}
+  .tile.pick .inner{cursor:crosshair;box-shadow:0 0 0 3px var(--accent2),0 4px 0 rgba(0,0,0,.35)}
+  .tile.secret .inner{box-shadow:0 0 0 3px var(--accent),0 4px 0 rgba(0,0,0,.35)}
+
+  .boardhead{display:flex;align-items:center;gap:10px;margin:0 0 10px;flex-wrap:wrap}
+  .boardhead h2{font-size:16px;margin:0;color:var(--muted);font-weight:bold;letter-spacing:.4px}
+  .counter{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px}
+
+  /* ---------- Side panel ---------- */
+  .side{display:flex;flex-direction:column;gap:14px}
+  .side .card{padding:14px}
+  .side h3{margin:0 0 10px;font-size:14px;letter-spacing:.6px;color:var(--muted);text-transform:uppercase}
+
+  .mine-card{display:flex;gap:12px;align-items:center}
+  .mine-card .pic{width:82px;flex:none;border-radius:10px;overflow:hidden;border:2px solid var(--accent);background:#f6f1e4}
+  .mine-card .pic svg{display:block;width:100%;height:auto}
+  .mine-card .who .lbl{font-size:12px;color:var(--muted)}
+  .mine-card .who .nm2{font-size:22px;font-weight:bold;color:var(--accent)}
+  .mine-card .who .traits{font-size:12px;color:var(--muted);line-height:1.5;margin-top:4px}
+
+  select{
+    width:100%;background:#171a3a;border:1px solid var(--line);color:var(--text);
+    padding:11px 12px;border-radius:11px;font-size:14px;font-family:inherit;margin-bottom:10px
+  }
+  .qbtns{display:flex;gap:8px;flex-wrap:wrap}
+  .qbtns .btn{flex:1;min-width:120px}
+
+  .log{
+    max-height:290px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;
+    font-size:13.5px;line-height:1.45;
+  }
+  .log .e{background:rgba(0,0,0,.22);border-left:3px solid var(--line);padding:7px 10px;border-radius:0 8px 8px 0}
+  .log .e.you{border-left-color:var(--accent2)}
+  .log .e.them{border-left-color:var(--accent)}
+  .log .e.sys{border-left-color:var(--muted);color:var(--muted);font-style:italic}
+  .log .e.yes{border-left-color:var(--good)}
+  .log .e.no{border-left-color:var(--bad)}
+  .log .e b{color:#fff}
+  .log .a{font-weight:bold}
+  .log .a.y{color:var(--good)}
+  .log .a.n{color:var(--bad)}
+
+  .chatrow{display:flex;gap:8px;margin-top:10px}
+  .chatrow input{
+    flex:1;background:#171a3a;border:1px solid var(--line);color:var(--text);
+    padding:9px 12px;border-radius:10px;font-size:14px;font-family:inherit;
+    text-transform:none;letter-spacing:normal;text-align:left;width:auto
+  }
+  .chatrow input:focus{outline:2px solid var(--accent2);outline-offset:1px}
+
+  .toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+  .toggle input{width:16px;height:16px;accent-color:var(--accent)}
+
+  /* ---------- Modal ---------- */
+  .modal{
+    position:fixed;inset:0;background:rgba(8,9,22,.82);backdrop-filter:blur(4px);
+    display:none;place-items:center;padding:20px;z-index:60
+  }
+  .modal.on{display:grid}
+  .modal .box{max-width:460px;width:100%;text-align:center}
+  .modal h2{margin:.2em 0 .4em;font-size:30px}
+  .modal .reveal{display:flex;gap:18px;justify-content:center;margin:18px 0}
+  .modal .reveal .p{width:120px}
+  .modal .reveal .p .pic{border-radius:12px;overflow:hidden;border:2px solid var(--line);background:#f6f1e4}
+  .modal .reveal .p .pic svg{display:block;width:100%;height:auto}
+  .modal .reveal .p .cap{font-size:12px;color:var(--muted);margin-top:6px}
+  .modal .reveal .p .cap b{display:block;font-size:16px;color:var(--text)}
+
+  .banner{
+    position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:70;
+    background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+    padding:11px 18px;font-size:14px;box-shadow:var(--shadow);display:none
+  }
+  .banner.on{display:block}
+  .banner.err{border-color:var(--bad);color:#ffd9d9}
+
+  .footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="logo"><span class="dot">🕵️</span> Guess Who</div>
+    <div class="spacer"></div>
+    <div class="pill" id="roomPill" style="display:none">Room <b id="roomPillCode">—</b></div>
+    <div class="pill" id="connPill" style="display:none">Opponent <b id="connPillText">connecting…</b></div>
+  </header>
+
+  <!-- ================= HOME ================= -->
+  <section class="screen on" id="scHome">
+    <div class="card home">
+      <div class="facestrip" id="faceStrip" aria-hidden="true"></div>
+      <h1>Guess Who</h1>
+      <p class="sub">
+        Play the classic guessing game with a friend, anywhere.<br>
+        One of you creates a room, shares the code, and you're in.
+      </p>
+
+      <div style="margin-bottom:18px">
+        <input type="text" class="name" id="nameInput" placeholder="Your name" maxlength="14">
+      </div>
+
+      <div class="row">
+        <button class="btn primary" id="btnCreate">Create a room</button>
+      </div>
+
+      <div class="joinbox">
+        <input type="text" id="codeInput" placeholder="CODE" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button class="btn accent" id="btnJoin">Join</button>
+      </div>
+
+      <p class="hint">
+        24 characters, one secret each. Take turns asking yes/no questions,<br>
+        flip down everyone who doesn't match, and be first to name your opponent's person.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= LOBBY ================= -->
+  <section class="screen" id="scLobby">
+    <div class="card home">
+      <p class="sub" style="margin-bottom:2px">Your room code</p>
+      <div class="codebig" id="lobbyCode">----</div>
+      <p class="hint" style="margin-top:0">Send this code to your friend — they type it on the home screen.</p>
+
+      <div class="sharefield">
+        <div class="url" id="shareUrl">—</div>
+        <button class="btn sm accent" id="btnCopy">Copy link</button>
+      </div>
+      <p class="hint">Or just send them this link — it drops them straight into your room.</p>
+
+      <div class="waiting"><span class="spin"></span> <span id="lobbyStatus">Waiting for your opponent to join…</span></div>
+
+      <div style="margin-top:22px">
+        <button class="btn ghost sm" id="btnLeaveLobby">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= GAME ================= -->
+  <section class="screen" id="scGame">
+    <div class="turnbar" id="turnbar">
+      <div class="status" id="turnText">Setting up…</div>
+      <div class="spacer"></div>
+      <label class="toggle" title="Automatically flip down characters ruled out by each answer">
+        <input type="checkbox" id="autoCross" checked> Auto-flip after answers
+      </label>
+      <button class="btn sm ghost" id="btnResetBoard">Reset board</button>
+      <button class="btn sm danger" id="btnQuit">Quit</button>
+    </div>
+
+    <div class="gamegrid">
+      <div>
+        <div class="boardhead">
+          <h2>Your board</h2>
+          <span class="counter" id="remainCount">24 still standing</span>
+          <span class="counter" id="theirCount">Opponent: 24 standing</span>
+        </div>
+        <div class="board" id="board"></div>
+      </div>
+
+      <aside class="side">
+        <div class="card">
+          <h3>Your secret character</h3>
+          <div class="mine-card">
+            <div class="pic" id="secretPic"></div>
+            <div class="who">
+              <div class="lbl">Your opponent is trying to guess</div>
+              <div class="nm2" id="secretName">—</div>
+              <div class="traits" id="secretTraits"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Your turn</h3>
+          <select id="qSelect"></select>
+          <div class="qbtns">
+            <button class="btn primary" id="btnAsk">Ask question</button>
+            <button class="btn accent" id="btnGuess">Final guess</button>
+          </div>
+          <p class="hint" id="guessHint" style="display:none;margin-top:10px">
+            Click a character on your board to guess. Wrong guess = you lose!
+            <button class="btn sm ghost" id="btnCancelGuess" style="margin-top:8px">Cancel</button>
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>Game log</h3>
+          <div class="log" id="log"></div>
+          <div class="chatrow">
+            <input type="text" id="chatInput" placeholder="Say something…" maxlength="140">
+            <button class="btn sm" id="btnChat">Send</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <div class="footer">Peer-to-peer — no accounts, no server storing your games.</div>
+</div>
+
+<!-- ================= END MODAL ================= -->
+<div class="modal" id="endModal">
+  <div class="card box">
+    <h2 id="endTitle">—</h2>
+    <p id="endText" style="color:var(--muted);margin:0"></p>
+    <div class="reveal" id="endReveal"></div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn primary" id="btnRematch">Play again</button>
+      <button class="btn ghost" id="btnHome">Back to menu</button>
+    </div>
+    <p class="hint" id="rematchNote" style="display:none">Waiting for your opponent to accept…</p>
+  </div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<script src="vendor/peerjs.min.js"></script>
+<script>
+"use strict";
+
+/* =========================================================
+   1. CHARACTERS
+   Every character is defined purely by attributes; the face
+   art and the question list are both generated from them.
+   ========================================================= */
+
+const HAIR_LABEL  = {black:"black", brown:"brown", blonde:"blonde", red:"red", grey:"grey/white"};
+const SKIN_HEX    = {light:"#f3c9a4", medium:"#c98b5e", dark:"#7d4b2b"};
+const SKIN_SHADE  = {light:"#dda87e", medium:"#a9673f", dark:"#5f3419"};
+const HAIR_HEX    = {black:"#2b2118", brown:"#7b4a24", blonde:"#e8c05a", red:"#c1502a", grey:"#dcdcdc"};
+const EYE_HEX     = {blue:"#3b82c4", brown:"#5a3a20", green:"#3f9464"};
+const HAT_HEX     = ["#e0563f","#3f7fe0","#4aa85c","#8a56c9","#e0a13f","#2f3550"];
+
+/** id, name, gender, skin, hair colour, hair style, eyes, glasses, hat, beard, moustache, earrings */
+const CHARACTERS = [
+  {id: 1, name:"Alex",   gender:"male",   skin:"light",  hair:"brown",  style:"short", eyes:"blue",  glasses:false, hat:false, beard:false, moustache:false, earrings:false},
+  {id: 2, name:"Bella",  gender:"female", skin:"medium", hair:"black",  style:"long",  eyes:"brown", glasses:true,  hat:false, beard:false, moustache:false, earrings:true },
+  {id: 3, name:"Carlos", gender:"male",   skin:"dark",   hair:"black",  style:"curly", eyes:"brown", glasses:false, hat:false, beard:true,  moustache:true,  earrings:false},
+  {id: 4, name:"Diana",  gender:"female", skin:"light",  hair:"blonde", style:"long",  eyes:"green", glasses:false, hat:true,  beard:false, moustache:false, earrings:true },
+  {id: 5, name:"Emeka",  gender:"male",   skin:"dark",   hair:"black",  style:"bald",  eyes:"brown", glasses:true,  hat:false, beard:false, moustache:true,  earrings:false},
+  {id: 6, name:"Farah",  gender:"female", skin:"medium", hair:"brown",  style:"curly", eyes:"brown", glasses:false, hat:false, beard:false, moustache:false, earrings:false},
+  {id: 7, name:"Greta",  gender:"female", skin:"light",  hair:"red",    style:"long",  eyes:"green", glasses:true,  hat:false, beard:false, moustache:false, earrings:false},
+  {id: 8, name:"Hugo",   gender:"male",   skin:"light",  hair:"blonde", style:"short", eyes:"blue",  glasses:false, hat:true,  beard:true,  moustache:false, earrings:false},
+  {id: 9, name:"Ines",   gender:"female", skin:"medium", hair:"black",  style:"short", eyes:"brown", glasses:false, hat:true,  beard:false, moustache:false, earrings:true },
+  {id:10, name:"Jamal",  gender:"male",   skin:"dark",   hair:"black",  style:"short", eyes:"brown", glasses:true,  hat:false, beard:false, moustache:false, earrings:true },
+  {id:11, name:"Klara",  gender:"female", skin:"light",  hair:"grey",   style:"long",  eyes:"blue",  glasses:true,  hat:false, beard:false, moustache:false, earrings:false},
+  {id:12, name:"Liam",   gender:"male",   skin:"light",  hair:"red",    style:"curly", eyes:"green", glasses:false, hat:false, beard:false, moustache:true,  earrings:false},
+  {id:13, name:"Mina",   gender:"female", skin:"dark",   hair:"black",  style:"curly", eyes:"brown", glasses:false, hat:false, beard:false, moustache:false, earrings:true },
+  {id:14, name:"Nolan",  gender:"male",   skin:"medium", hair:"brown",  style:"bald",  eyes:"brown", glasses:false, hat:true,  beard:true,  moustache:true,  earrings:false},
+  {id:15, name:"Omar",   gender:"male",   skin:"medium", hair:"black",  style:"short", eyes:"green", glasses:false, hat:false, beard:false, moustache:true,  earrings:true },
+  {id:16, name:"Priya",  gender:"female", skin:"medium", hair:"black",  style:"long",  eyes:"brown", glasses:true,  hat:true,  beard:false, moustache:false, earrings:false},
+  {id:17, name:"Quinn",  gender:"female", skin:"light",  hair:"brown",  style:"short", eyes:"blue",  glasses:false, hat:false, beard:false, moustache:false, earrings:false},
+  {id:18, name:"Rosa",   gender:"female", skin:"medium", hair:"brown",  style:"long",  eyes:"green", glasses:false, hat:false, beard:false, moustache:false, earrings:true },
+  {id:19, name:"Sven",   gender:"male",   skin:"light",  hair:"grey",   style:"bald",  eyes:"blue",  glasses:true,  hat:false, beard:true,  moustache:false, earrings:false},
+  {id:20, name:"Tariq",  gender:"male",   skin:"dark",   hair:"black",  style:"curly", eyes:"brown", glasses:false, hat:true,  beard:false, moustache:false, earrings:false},
+  {id:21, name:"Uma",    gender:"female", skin:"dark",   hair:"black",  style:"short", eyes:"green", glasses:true,  hat:false, beard:false, moustache:false, earrings:false},
+  {id:22, name:"Viktor", gender:"male",   skin:"light",  hair:"blonde", style:"long",  eyes:"blue",  glasses:false, hat:false, beard:true,  moustache:true,  earrings:false},
+  {id:23, name:"Wendy",  gender:"female", skin:"light",  hair:"red",    style:"curly", eyes:"green", glasses:false, hat:true,  beard:false, moustache:false, earrings:true },
+  {id:24, name:"Yusuf",  gender:"male",   skin:"medium", hair:"brown",  style:"short", eyes:"brown", glasses:false, hat:false, beard:true,  moustache:false, earrings:false}
+];
+
+const byId = id => CHARACTERS.find(c => c.id === id);
+
+/* =========================================================
+   2. QUESTIONS
+   Each question knows how to test a character, so the
+   answer is computed locally on the answering player's
+   device — nobody has to trust anybody.
+   ========================================================= */
+
+const QUESTIONS = [
+  {id:"male",      group:"Basics",      text:"Is your person male?",                  test:c => c.gender === "male"},
+  {id:"female",    group:"Basics",      text:"Is your person female?",                test:c => c.gender === "female"},
+
+  {id:"skinLight", group:"Appearance",  text:"Does your person have light skin?",     test:c => c.skin === "light"},
+  {id:"skinMed",   group:"Appearance",  text:"Does your person have medium skin?",    test:c => c.skin === "medium"},
+  {id:"skinDark",  group:"Appearance",  text:"Does your person have dark skin?",      test:c => c.skin === "dark"},
+
+  {id:"hBlack",    group:"Hair colour", text:"Does your person have black hair?",     test:c => c.style !== "bald" && c.hair === "black"},
+  {id:"hBrown",    group:"Hair colour", text:"Does your person have brown hair?",     test:c => c.style !== "bald" && c.hair === "brown"},
+  {id:"hBlonde",   group:"Hair colour", text:"Does your person have blonde hair?",    test:c => c.style !== "bald" && c.hair === "blonde"},
+  {id:"hRed",      group:"Hair colour", text:"Does your person have red hair?",       test:c => c.style !== "bald" && c.hair === "red"},
+  {id:"hGrey",     group:"Hair colour", text:"Does your person have grey or white hair?", test:c => c.style !== "bald" && c.hair === "grey"},
+
+  {id:"sLong",     group:"Hair style",  text:"Does your person have long hair?",      test:c => c.style === "long"},
+  {id:"sShort",    group:"Hair style",  text:"Does your person have short hair?",     test:c => c.style === "short"},
+  {id:"sCurly",    group:"Hair style",  text:"Does your person have curly hair?",     test:c => c.style === "curly"},
+  {id:"sBald",     group:"Hair style",  text:"Is your person bald?",                  test:c => c.style === "bald"},
+
+  {id:"eBlue",     group:"Eyes",        text:"Does your person have blue eyes?",      test:c => c.eyes === "blue"},
+  {id:"eBrown",    group:"Eyes",        text:"Does your person have brown eyes?",     test:c => c.eyes === "brown"},
+  {id:"eGreen",    group:"Eyes",        text:"Does your person have green eyes?",     test:c => c.eyes === "green"},
+
+  {id:"glasses",   group:"Accessories", text:"Does your person wear glasses?",        test:c => c.glasses},
+  {id:"hat",       group:"Accessories", text:"Is your person wearing a hat?",         test:c => c.hat},
+  {id:"earrings",  group:"Accessories", text:"Is your person wearing earrings?",      test:c => c.earrings},
+
+  {id:"beard",     group:"Facial hair", text:"Does your person have a beard?",        test:c => c.beard},
+  {id:"moustache", group:"Facial hair", text:"Does your person have a moustache?",    test:c => c.moustache},
+  {id:"anyFacial", group:"Facial hair", text:"Does your person have any facial hair?",test:c => c.beard || c.moustache}
+];
+
+const qById = id => QUESTIONS.find(q => q.id === id);
+
+/* =========================================================
+   3. FACE ART — procedural SVG, no image files needed
+   ========================================================= */
+
+function faceSVG(c){
+  const skin   = SKIN_HEX[c.skin];
+  const shade  = SKIN_SHADE[c.skin];
+  const hairCol= HAIR_HEX[c.hair];
+  const eyeCol = EYE_HEX[c.eyes];
+  const hatCol = HAT_HEX[c.id % HAT_HEX.length];
+  const p = [];
+
+  // neck, then a plain shirt — deliberately the same on everyone, so nothing
+  // visible on a tile is an attribute you can't actually ask about
+  p.push(`<rect x="41" y="70" width="18" height="20" rx="6" fill="${shade}"/>`);
+  p.push(`<path d="M16 110 q2 -21 34 -23 q32 2 34 23 z" fill="#4a5a86"/>`);
+  p.push(`<path d="M41 87 q9 9 18 0 q-4 12 -9 12 q-5 0 -9 -12 z" fill="${skin}" opacity=".9"/>`);
+
+  // ears
+  p.push(`<ellipse cx="22" cy="54" rx="5.5" ry="7" fill="${skin}"/>`);
+  p.push(`<ellipse cx="78" cy="54" rx="5.5" ry="7" fill="${skin}"/>`);
+
+  // head
+  p.push(`<ellipse cx="50" cy="50" rx="27" ry="31" fill="${skin}"/>`);
+
+  // hair behind head (long styles)
+  if (c.style === "long"){
+    p.push(`<path d="M20 46 q-4 34 2 44 q10 -8 10 -30 z" fill="${hairCol}"/>`);
+    p.push(`<path d="M80 46 q4 34 -2 44 q-10 -8 -10 -30 z" fill="${hairCol}"/>`);
+  }
+
+  // eyebrows
+  const browY = 41;
+  p.push(`<path d="M35 ${browY} q6 -4 12 0" stroke="${c.style==="bald"?"#6b5544":hairCol}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`);
+  p.push(`<path d="M53 ${browY} q6 -4 12 0" stroke="${c.style==="bald"?"#6b5544":hairCol}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`);
+
+  // eyes
+  [[41,49],[59,49]].forEach(([x,y]) => {
+    p.push(`<ellipse cx="${x}" cy="${y}" rx="6.5" ry="4.6" fill="#fff"/>`);
+    p.push(`<circle cx="${x}" cy="${y}" r="3.1" fill="${eyeCol}"/>`);
+    p.push(`<circle cx="${x}" cy="${y}" r="1.4" fill="#1a1a1a"/>`);
+    p.push(`<circle cx="${x+1.2}" cy="${y-1.4}" r="0.9" fill="#fff" opacity=".9"/>`);
+  });
+
+  // nose
+  p.push(`<path d="M50 52 q-3 8 1 9" stroke="${shade}" stroke-width="2" fill="none" stroke-linecap="round"/>`);
+
+  // beard sits under the mouth so the smile still reads; a darker edge keeps
+  // pale beards (blonde/grey) visible against pale skin at tile size
+  if (c.beard){
+    p.push(`<path d="M27 55 q1 27 23 28 q22 -1 23 -28 q-6 16 -23 16 q-17 0 -23 -16 z"
+      fill="${hairCol}" stroke="rgba(0,0,0,.45)" stroke-width="1.2"/>`);
+  }
+
+  // mouth
+  p.push(`<path d="M43 66 q7 6 14 0" stroke="#94413c" stroke-width="2.4" fill="none" stroke-linecap="round"/>`);
+
+  if (c.moustache){
+    p.push(`<path d="M39 61 q11 -6 22 0 q-11 5 -22 0 z" fill="${hairCol}" stroke="rgba(0,0,0,.45)" stroke-width="1"/>`);
+  }
+
+  // hair on top
+  if (c.style === "short"){
+    p.push(`<path d="M23 46 q2 -28 27 -28 q25 0 27 28 q-6 -14 -27 -14 q-21 0 -27 14 z" fill="${hairCol}"/>`);
+  } else if (c.style === "long"){
+    p.push(`<path d="M21 48 q1 -31 29 -31 q28 0 29 31 q-8 -18 -29 -18 q-21 0 -29 18 z" fill="${hairCol}"/>`);
+  } else if (c.style === "curly"){
+    p.push(`<path d="M23 44 q3 -26 27 -26 q24 0 27 26 q-8 -12 -27 -12 q-19 0 -27 12 z" fill="${hairCol}"/>`);
+    [[27,36],[35,26],[46,21],[57,22],[67,29],[73,39]].forEach(([x,y]) =>
+      p.push(`<circle cx="${x}" cy="${y}" r="8.5" fill="${hairCol}"/>`));
+  } else { // bald
+    p.push(`<ellipse cx="43" cy="28" rx="9" ry="5" fill="#fff" opacity=".16"/>`);
+  }
+
+  // hat (drawn over hair)
+  if (c.hat){
+    p.push(`<path d="M17 33 q33 -10 66 0 q-4 4 -66 0 z" fill="${hatCol}" opacity=".85"/>`);
+    p.push(`<path d="M24 33 q4 -24 26 -24 q22 0 26 24 z" fill="${hatCol}"/>`);
+    p.push(`<rect x="24" y="29" width="52" height="6" rx="3" fill="rgba(0,0,0,.25)"/>`);
+  }
+
+  // glasses (over everything on the face)
+  if (c.glasses){
+    p.push(`<g stroke="#31363f" stroke-width="2.4" fill="rgba(180,225,255,.25)">
+      <circle cx="41" cy="49" r="9.5"/><circle cx="59" cy="49" r="9.5"/>
+      <path d="M50.5 48 h-1" /><path d="M31.5 47 l-8 -2" fill="none"/><path d="M68.5 47 l8 -2" fill="none"/>
+    </g>`);
+  }
+
+  // earrings
+  if (c.earrings){
+    p.push(`<circle cx="22" cy="62" r="2.6" fill="#ffcf4a" stroke="#c99a10" stroke-width=".8"/>`);
+    p.push(`<circle cx="78" cy="62" r="2.6" fill="#ffcf4a" stroke="#c99a10" stroke-width=".8"/>`);
+  }
+
+  return `<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${c.name}">
+    <rect width="100" height="110" fill="#f6f1e4"/>${p.join("")}</svg>`;
+}
+
+function traitLine(c){
+  const bits = [];
+  bits.push(c.gender === "male" ? "Male" : "Female");
+  bits.push(c.style === "bald" ? "bald" : `${HAIR_LABEL[c.hair]} ${c.style} hair`);
+  bits.push(`${c.eyes} eyes`);
+  if (c.glasses)   bits.push("glasses");
+  if (c.hat)       bits.push("hat");
+  if (c.beard)     bits.push("beard");
+  if (c.moustache) bits.push("moustache");
+  if (c.earrings)  bits.push("earrings");
+  return bits.join(" · ");
+}
+
+/* =========================================================
+   4. STATE
+   ========================================================= */
+
+const S = {
+  peer:null, conn:null,
+  isHost:false,
+  code:"",
+  myName:"You", theirName:"Opponent",
+  mySecret:null,          // character object — chosen locally, never sent until reveal
+  theirSecret:null,       // only learned at the end
+  down:new Set(),         // ids flipped down on my board
+  theirDown:24,           // how many they still have standing
+  myTurn:false,
+  phase:"home",           // home | lobby | playing | over
+  pendingQ:null,          // question I asked, awaiting their answer
+  guessMode:false,
+  rematchMe:false, rematchThem:false
+};
+
+const $ = sel => document.querySelector(sel);
+const el = {
+  screens:{home:$("#scHome"), lobby:$("#scLobby"), game:$("#scGame")},
+  board:$("#board"), log:$("#log"),
+  turnbar:$("#turnbar"), turnText:$("#turnText"),
+  remain:$("#remainCount"), theirRemain:$("#theirCount"),
+  qSelect:$("#qSelect"), btnAsk:$("#btnAsk"), btnGuess:$("#btnGuess"),
+  guessHint:$("#guessHint"),
+  secretPic:$("#secretPic"), secretName:$("#secretName"), secretTraits:$("#secretTraits"),
+  roomPill:$("#roomPill"), roomPillCode:$("#roomPillCode"),
+  connPill:$("#connPill"), connPillText:$("#connPillText"),
+  banner:$("#banner"), endModal:$("#endModal"),
+  endTitle:$("#endTitle"), endText:$("#endText"), endReveal:$("#endReveal"),
+  rematchNote:$("#rematchNote"), autoCross:$("#autoCross")
+};
+
+function show(name){
+  Object.values(el.screens).forEach(s => s.classList.remove("on"));
+  el.screens[name].classList.add("on");
+}
+
+let bannerTimer = null;
+function banner(msg, isErr){
+  el.banner.textContent = msg;
+  el.banner.classList.toggle("err", !!isErr);
+  el.banner.classList.add("on");
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => el.banner.classList.remove("on"), isErr ? 6000 : 3000);
+}
+
+function logLine(html, cls){
+  const d = document.createElement("div");
+  d.className = "e " + (cls || "");
+  d.innerHTML = html;
+  el.log.appendChild(d);
+  el.log.scrollTop = el.log.scrollHeight;
+}
+
+const esc = s => String(s).replace(/[<>&"]/g, ch => ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[ch]));
+
+/* =========================================================
+   5. NETWORKING (PeerJS / WebRTC)
+   Room code -> peer id, so the two browsers connect directly.
+   ========================================================= */
+
+const PEER_PREFIX = "guesswho-v1-";
+const CODE_CHARS  = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 — easier to read aloud
+
+function makeCode(){
+  let s = "";
+  for (let i = 0; i < 4; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return s;
+}
+
+function newPeer(id){
+  return new Peer(id, {debug:1});
+}
+
+/* If the signalling server can't be reached the peer just never opens, so
+   every connection attempt gets a watchdog rather than an endless spinner. */
+let watchdog = null;
+function startWatchdog(ms, msg){
+  clearTimeout(watchdog);
+  watchdog = setTimeout(() => { banner(msg, true); leaveToHome(); }, ms);
+}
+function stopWatchdog(){ clearTimeout(watchdog); watchdog = null; }
+
+function roomUrl(code){
+  return location.origin + location.pathname + "?room=" + code;
+}
+
+function hostGame(attempt){
+  attempt = attempt || 0;
+  if (attempt > 5){ banner("Couldn't create a room. Please try again.", true); leaveToHome(); return; }
+
+  const code = makeCode();
+  S.isHost = true;
+  S.code = code;
+
+  // show the lobby straight away so the click always feels like it did something
+  S.phase = "lobby";
+  $("#lobbyCode").textContent = "····";
+  $("#shareUrl").textContent = "…";
+  $("#btnCopy").disabled = true;
+  $("#lobbyStatus").textContent = "Creating your room…";
+  show("lobby");
+  startWatchdog(15000, "Couldn't reach the matchmaking server. Check your connection and try again.");
+
+  const peer = newPeer(PEER_PREFIX + code);
+  S.peer = peer;
+
+  peer.on("open", () => {
+    stopWatchdog();
+    $("#lobbyCode").textContent = code;
+    $("#lobbyStatus").textContent = "Waiting for your opponent to join…";
+    el.roomPillCode.textContent = code;
+    el.roomPill.style.display = "";
+    $("#shareUrl").textContent = roomUrl(code);
+    $("#shareUrl").dataset.url = roomUrl(code);
+    $("#btnCopy").disabled = false;
+  });
+
+  peer.on("connection", conn => {
+    if (S.conn && S.conn.open){ conn.close(); return; }  // room is full
+    bindConn(conn);
+  });
+
+  peer.on("error", err => {
+    if (err.type === "unavailable-id"){       // code collision — pick another
+      try { peer.destroy(); } catch(e){}
+      hostGame(attempt + 1);
+      return;
+    }
+    peerError(err);
+  });
+}
+
+function joinGame(code){
+  S.isHost = false;
+  S.code = code;
+
+  S.phase = "lobby";
+  $("#lobbyCode").textContent = code;
+  $("#lobbyStatus").textContent = "Connecting to " + code + "…";
+  $("#shareUrl").textContent = roomUrl(code);
+  $("#shareUrl").dataset.url = roomUrl(code);
+  $("#btnCopy").disabled = false;
+  el.roomPillCode.textContent = code;
+  el.roomPill.style.display = "";
+  show("lobby");
+  startWatchdog(15000, "Couldn't reach the matchmaking server. Check your connection and try again.");
+
+  const peer = newPeer(undefined);  // broker assigns us a random id
+  S.peer = peer;
+
+  peer.on("open", () => {
+    startWatchdog(15000, "No room found with code " + code + ". Check the code and try again.");
+    const conn = peer.connect(PEER_PREFIX + code, {reliable:true});
+    bindConn(conn);
+  });
+
+  peer.on("error", err => {
+    if (err.type === "peer-unavailable"){
+      banner("No room found with code " + code + ".", true);
+      leaveToHome();
+      return;
+    }
+    peerError(err);
+  });
+}
+
+function peerError(err){
+  console.error("peer error", err);
+  const map = {
+    "network":"Lost connection to the matchmaking server.",
+    "server-error":"The matchmaking server is unavailable right now.",
+    "socket-error":"Network problem — check your connection.",
+    "browser-incompatible":"This browser doesn't support peer-to-peer play.",
+    "webrtc":"WebRTC failed to connect. A strict network or VPN can block this."
+  };
+  banner(map[err.type] || ("Connection error: " + err.type), true);
+  if (S.phase === "lobby") leaveToHome();
+}
+
+function bindConn(conn){
+  S.conn = conn;
+
+  conn.on("open", () => {
+    stopWatchdog();
+    el.connPill.style.display = "";
+    setConnPill(true);
+    send({t:"hello", name:S.myName});
+    if (S.isHost) startNewGame(true);   // host owns "who goes first"
+  });
+
+  conn.on("data", handleMessage);
+
+  conn.on("close", () => {
+    setConnPill(false);
+    if (S.phase === "playing"){
+      logLine("<b>" + esc(S.theirName) + "</b> disconnected.", "sys");
+      banner(S.theirName + " left the game.", true);
+      S.myTurn = false;
+      renderTurn();
+    }
+  });
+
+  conn.on("error", e => console.error("conn error", e));
+}
+
+function setConnPill(up){
+  el.connPill.className = "pill " + (up ? "live" : "dead");
+  el.connPillText.textContent = up ? "connected" : "disconnected";
+}
+
+function send(msg){
+  if (S.conn && S.conn.open) S.conn.send(msg);
+}
+
+/* =========================================================
+   6. MESSAGE HANDLING
+   ========================================================= */
+
+function handleMessage(m){
+  if (!m || typeof m.t !== "string") return;
+
+  switch (m.t){
+    case "hello":
+      S.theirName = (m.name || "Opponent").slice(0, 14);
+      el.theirRemain.textContent = S.theirName + ": 24 standing";
+      break;
+
+    case "start":                       // host tells us the game is on
+      if (!S.isHost) startNewGame(false, m.guestFirst);
+      break;
+
+    case "ask": {
+      const q = qById(m.qid);
+      if (!q || !S.mySecret) return;
+      const yes = !!q.test(S.mySecret);
+      send({t:"answer", qid:m.qid, yes:yes});
+      logLine(`<b>${esc(S.theirName)}</b> asked: ${esc(q.text)} <span class="a ${yes?"y":"n"}">${yes?"YES":"NO"}</span>`,
+              yes ? "yes" : "no");
+      S.myTurn = true;                  // answering hands the turn to me
+      renderTurn();
+      break;
+    }
+
+    case "answer": {
+      const q = qById(m.qid);
+      if (!q) return;
+      logLine(`You asked: ${esc(q.text)} <span class="a ${m.yes?"y":"n"}">${m.yes?"YES":"NO"}</span>`,
+              m.yes ? "yes" : "no");
+      if (el.autoCross.checked) autoCross(q, m.yes);
+      S.pendingQ = null;
+      S.myTurn = false;                 // turn passes to them
+      renderTurn();
+      break;
+    }
+
+    case "eliminated":                  // opponent's standing count changed
+      S.theirDown = m.standing;
+      el.theirRemain.textContent = S.theirName + ": " + m.standing + " standing";
+      break;
+
+    case "guess": {                     // they guessed my character
+      if (!S.mySecret) return;
+      S.theirSecret = byId(m.mine) || null;   // game's ending, so they reveal too
+      const correct = m.charId === S.mySecret.id;
+      send({t:"guessResult", charId:m.charId, correct:correct, secret:S.mySecret.id});
+      const guessed = byId(m.charId);
+      logLine(`<b>${esc(S.theirName)}</b> guessed <b>${esc(guessed ? guessed.name : "?")}</b> — ${correct ? "correct!" : "wrong!"}`,
+              correct ? "no" : "yes");
+      endGame(!correct, correct
+        ? `${S.theirName} guessed your character correctly.`
+        : `${S.theirName} guessed ${guessed ? guessed.name : "wrong"} — but your person was ${S.mySecret.name}.`);
+      break;
+    }
+
+    case "guessResult": {               // result of my guess
+      S.theirSecret = byId(m.secret);
+      const guessed = byId(m.charId);
+      logLine(`You guessed <b>${esc(guessed ? guessed.name : "?")}</b> — ${m.correct ? "correct!" : "wrong!"}`,
+              m.correct ? "yes" : "no");
+      endGame(m.correct, m.correct
+        ? `You found ${S.theirName}'s character!`
+        : `Their person was ${S.theirSecret ? S.theirSecret.name : "someone else"}.`);
+      break;
+    }
+
+    case "chat":
+      logLine(`<b>${esc(S.theirName)}:</b> ${esc(String(m.text).slice(0,140))}`, "them");
+      break;
+
+    case "rematch":
+      S.rematchThem = true;
+      if (S.rematchMe){ doRematch(); }
+      else {
+        el.rematchNote.style.display = "";
+        el.rematchNote.textContent = S.theirName + " wants a rematch!";
+      }
+      break;
+
+    case "quit":
+      logLine(`<b>${esc(S.theirName)}</b> left the game.`, "sys");
+      banner(S.theirName + " left the game.", true);
+      break;
+  }
+}
+
+/* =========================================================
+   7. GAME FLOW
+   ========================================================= */
+
+function pickSecret(){
+  return CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
+}
+
+function startNewGame(iAmHost, guestFirstFromHost){
+  // Each player picks their own secret locally. Neither side ever sends it
+  // until the reveal, so neither side can peek or cheat.
+  S.mySecret   = pickSecret();
+  S.theirSecret= null;
+  S.down.clear();
+  S.theirDown  = 24;
+  S.pendingQ   = null;
+  S.guessMode  = false;
+  S.rematchMe = S.rematchThem = false;
+  S.phase      = "playing";
+
+  let guestFirst;
+  if (iAmHost){
+    guestFirst = Math.random() < 0.5;
+    send({t:"start", guestFirst:guestFirst});
+    S.myTurn = !guestFirst;
+  } else {
+    guestFirst = !!guestFirstFromHost;
+    S.myTurn = guestFirst;
+  }
+
+  el.log.innerHTML = "";
+  el.endModal.classList.remove("on");
+  el.rematchNote.style.display = "none";
+  el.theirRemain.textContent = S.theirName + ": 24 standing";
+
+  buildBoard();
+  renderSecret();
+  buildQuestionList();
+  renderTurn();
+  show("game");
+
+  logLine(`Game on! Your secret character is <b>${esc(S.mySecret.name)}</b>. ${S.myTurn ? "You go first." : esc(S.theirName) + " goes first."}`, "sys");
+}
+
+function buildBoard(){
+  el.board.innerHTML = "";
+  CHARACTERS.forEach(c => {
+    const b = document.createElement("button");
+    b.className = "tile";
+    b.dataset.id = c.id;
+    b.title = c.name;
+    b.innerHTML = `<div class="inner">${faceSVG(c)}<div class="nm">${esc(c.name)}</div></div>`;
+    b.addEventListener("click", () => onTileClick(c));
+    el.board.appendChild(b);
+  });
+  refreshBoard();
+}
+
+function refreshBoard(){
+  [...el.board.children].forEach(t => {
+    const id = +t.dataset.id;
+    t.classList.toggle("down", S.down.has(id));
+    t.classList.toggle("pick", S.guessMode && !S.down.has(id));
+  });
+  const standing = CHARACTERS.length - S.down.size;
+  el.remain.textContent = standing + " still standing";
+}
+
+function onTileClick(c){
+  if (S.phase !== "playing") return;
+
+  if (S.guessMode){
+    if (!S.myTurn){ banner("Wait for your turn."); return; }
+    S.guessMode = false;
+    el.guessHint.style.display = "none";
+    refreshBoard();
+    send({t:"guess", charId:c.id, mine:S.mySecret.id});
+    logLine(`You made a final guess: <b>${esc(c.name)}</b>…`, "you");
+    S.myTurn = false;
+    renderTurn();
+    return;
+  }
+
+  // normal flip up/down
+  if (S.down.has(c.id)) S.down.delete(c.id); else S.down.add(c.id);
+  refreshBoard();
+  send({t:"eliminated", standing:CHARACTERS.length - S.down.size});
+}
+
+function autoCross(q, answeredYes){
+  let n = 0;
+  CHARACTERS.forEach(c => {
+    if (S.down.has(c.id)) return;
+    const matches = !!q.test(c);
+    if (matches !== answeredYes){ S.down.add(c.id); n++; }
+  });
+  if (n){
+    refreshBoard();
+    send({t:"eliminated", standing:CHARACTERS.length - S.down.size});
+    logLine(`Auto-flipped <b>${n}</b> character${n===1?"":"s"} that can't match.`, "sys");
+  }
+}
+
+function renderSecret(){
+  el.secretPic.innerHTML = faceSVG(S.mySecret);
+  el.secretName.textContent = S.mySecret.name;
+  el.secretTraits.textContent = traitLine(S.mySecret);
+}
+
+function buildQuestionList(){
+  el.qSelect.innerHTML = "";
+  const groups = [...new Set(QUESTIONS.map(q => q.group))];
+  groups.forEach(g => {
+    const og = document.createElement("optgroup");
+    og.label = g;
+    QUESTIONS.filter(q => q.group === g).forEach(q => {
+      const o = document.createElement("option");
+      o.value = q.id;
+      o.textContent = q.text;
+      og.appendChild(o);
+    });
+    el.qSelect.appendChild(og);
+  });
+}
+
+function renderTurn(){
+  const live = S.conn && S.conn.open;
+  const can = S.phase === "playing" && S.myTurn && live && !S.pendingQ;
+
+  el.turnbar.classList.toggle("mine", !!(S.myTurn && S.phase === "playing"));
+  el.turnbar.classList.toggle("theirs", !(S.myTurn && S.phase === "playing"));
+
+  if (S.phase !== "playing")      el.turnText.textContent = "Game over";
+  else if (!live)                 el.turnText.textContent = "Opponent disconnected";
+  else if (S.pendingQ)            el.turnText.textContent = "Waiting for their answer…";
+  else if (S.myTurn)              el.turnText.textContent = "Your turn — ask a question";
+  else                            el.turnText.textContent = S.theirName + "'s turn…";
+
+  el.btnAsk.disabled   = !can;
+  el.btnGuess.disabled = !can;
+  el.qSelect.disabled  = !can;
+}
+
+function endGame(iWon, detail){
+  S.phase = "over";
+  S.myTurn = false;
+  S.guessMode = false;
+  el.guessHint.style.display = "none";
+  refreshBoard();
+  renderTurn();
+
+  el.endTitle.textContent = iWon ? "🎉 You win!" : "😞 You lose";
+  el.endText.textContent = detail || "";
+
+  const cards = [];
+  if (S.mySecret){
+    cards.push(`<div class="p"><div class="pic">${faceSVG(S.mySecret)}</div>
+      <div class="cap">Your character<b>${esc(S.mySecret.name)}</b></div></div>`);
+  }
+  if (S.theirSecret){
+    cards.push(`<div class="p"><div class="pic">${faceSVG(S.theirSecret)}</div>
+      <div class="cap">${esc(S.theirName)}'s character<b>${esc(S.theirSecret.name)}</b></div></div>`);
+  }
+  el.endReveal.innerHTML = cards.join("");
+  el.endModal.classList.add("on");
+}
+
+function doRematch(){
+  el.endModal.classList.remove("on");
+  el.rematchNote.style.display = "none";
+  if (S.isHost) startNewGame(true);
+  // guests wait for the host's "start" message
+}
+
+function leaveToHome(){
+  stopWatchdog();
+  try { if (S.conn) S.conn.close(); } catch(e){}
+  try { if (S.peer) S.peer.destroy(); } catch(e){}
+  S.conn = S.peer = null;
+  S.phase = "home";
+  el.roomPill.style.display = "none";
+  el.connPill.style.display = "none";
+  el.endModal.classList.remove("on");
+  history.replaceState(null, "", location.pathname);
+  show("home");
+}
+
+/* =========================================================
+   8. UI WIRING
+   ========================================================= */
+
+function myNameFromInput(){
+  const v = $("#nameInput").value.trim();
+  return v ? v.slice(0, 14) : "Player";
+}
+
+$("#btnCreate").addEventListener("click", () => {
+  S.myName = myNameFromInput();
+  localStorage.setItem("gw_name", S.myName);
+  $("#lobbyStatus").textContent = "Waiting for your opponent to join…";
+  hostGame();
+});
+
+function tryJoin(){
+  const code = $("#codeInput").value.trim().toUpperCase();
+  if (code.length !== 4){ banner("Room codes are 4 characters.", true); return; }
+  S.myName = myNameFromInput();
+  localStorage.setItem("gw_name", S.myName);
+  joinGame(code);
+}
+$("#btnJoin").addEventListener("click", tryJoin);
+$("#codeInput").addEventListener("keydown", e => { if (e.key === "Enter") tryJoin(); });
+
+$("#btnCopy").addEventListener("click", async () => {
+  const url = $("#shareUrl").dataset.url || $("#shareUrl").textContent;
+  try {
+    await navigator.clipboard.writeText(url);
+    banner("Link copied — send it to your friend!");
+  } catch(e){
+    banner("Copy failed — select the link and copy it manually.", true);
+  }
+});
+
+$("#btnLeaveLobby").addEventListener("click", leaveToHome);
+$("#btnHome").addEventListener("click", () => { send({t:"quit"}); leaveToHome(); });
+$("#btnQuit").addEventListener("click", () => {
+  if (confirm("Leave this game?")){ send({t:"quit"}); leaveToHome(); }
+});
+
+el.btnAsk.addEventListener("click", () => {
+  if (!S.myTurn || S.pendingQ) return;
+  const q = qById(el.qSelect.value);
+  if (!q) return;
+  S.pendingQ = q.id;
+  send({t:"ask", qid:q.id});
+  renderTurn();
+});
+
+el.btnGuess.addEventListener("click", () => {
+  if (!S.myTurn) return;
+  S.guessMode = true;
+  el.guessHint.style.display = "";
+  refreshBoard();
+  banner("Pick the character you think they have.");
+});
+
+$("#btnCancelGuess").addEventListener("click", () => {
+  S.guessMode = false;
+  el.guessHint.style.display = "none";
+  refreshBoard();
+});
+
+$("#btnResetBoard").addEventListener("click", () => {
+  S.down.clear();
+  refreshBoard();
+  send({t:"eliminated", standing:CHARACTERS.length});
+});
+
+$("#btnRematch").addEventListener("click", () => {
+  S.rematchMe = true;
+  send({t:"rematch"});
+  if (S.rematchThem) doRematch();
+  else {
+    el.rematchNote.style.display = "";
+    el.rematchNote.textContent = "Waiting for " + S.theirName + " to accept…";
+  }
+});
+
+function sendChat(){
+  const inp = $("#chatInput");
+  const text = inp.value.trim();
+  if (!text) return;
+  send({t:"chat", text:text});
+  logLine(`<b>You:</b> ${esc(text)}`, "you");
+  inp.value = "";
+}
+$("#btnChat").addEventListener("click", sendChat);
+$("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendChat(); });
+
+/* ---------- boot ---------- */
+(function boot(){
+  // a few random faces on the menu, tilted like real tiles
+  const strip = document.getElementById("faceStrip");
+  const shuffled = [...CHARACTERS].sort(() => Math.random() - 0.5).slice(0, 6);
+  strip.innerHTML = shuffled.map((c, i) =>
+    `<div class="f" style="--rot:${(i % 2 ? 1 : -1) * (2 + (i % 3))}deg">${faceSVG(c)}</div>`).join("");
+
+  const saved = localStorage.getItem("gw_name");
+  if (saved) $("#nameInput").value = saved;
+
+  const room = new URLSearchParams(location.search).get("room");
+  if (room){
+    $("#codeInput").value = room.toUpperCase().slice(0, 4);
+    banner("Room " + room.toUpperCase() + " — enter your name and hit Join.");
+  }
+
+  if (typeof Peer === "undefined"){
+    banner("Couldn't load the peer-to-peer library. Check your connection and reload.", true);
+    $("#btnCreate").disabled = true;
+    $("#btnJoin").disabled = true;
+  }
+})();
+</script>
+</body>
+</html>
