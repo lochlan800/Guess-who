@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Guess Who">
+  <rect width="512" height="512" rx="110" fill="#14162b"/>
+  <rect x="86" y="70" width="340" height="372" rx="34" fill="#f6f1e4" stroke="#b9ab86" stroke-width="10"/>
+  <ellipse cx="256" cy="238" rx="104" ry="118" fill="#f3c9a4"/>
+  <ellipse cx="152" cy="246" rx="21" ry="27" fill="#f3c9a4"/>
+  <ellipse cx="360" cy="246" rx="21" ry="27" fill="#f3c9a4"/>
+  <path d="M148 216 q8 -108 108 -108 q100 0 108 108 q-24 -54 -108 -54 q-84 0 -108 54 z" fill="#7b4a24"/>
+  <g fill="#fff">
+    <ellipse cx="220" cy="232" rx="25" ry="18"/>
+    <ellipse cx="292" cy="232" rx="25" ry="18"/>
+  </g>
+  <circle cx="220" cy="232" r="12" fill="#3b82c4"/>
+  <circle cx="292" cy="232" r="12" fill="#3b82c4"/>
+  <circle cx="220" cy="232" r="5" fill="#1a1a1a"/>
+  <circle cx="292" cy="232" r="5" fill="#1a1a1a"/>
+  <path d="M226 300 q30 24 60 0" stroke="#94413c" stroke-width="11" fill="none" stroke-linecap="round"/>
+  <path d="M120 442 q10 -78 136 -86 q126 8 136 86 z" fill="#4a5a86"/>
+  <circle cx="256" cy="238" r="150" fill="none" stroke="#ffca3a" stroke-width="16" opacity=".55"/>
+  <path d="M366 348 l74 74" stroke="#ffca3a" stroke-width="26" stroke-linecap="round" opacity=".55"/>
+</svg>

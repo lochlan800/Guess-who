@@ -110,7 +110,7 @@ const openTab = async (ctx, url) => {
 
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-  const ctx = await b.newContext({ viewport: { width: 1200, height: 900 } });
+  const ctx = await b.newContext({ viewport: { width: 1200, height: 900 } , serviceWorkers: 'block' });
 
   // ---------- 1. first to arrive holds the room ----------
   const A = await openTab(ctx, URL + '?room=ABCD');

@@ -7,6 +7,10 @@
 <meta name="description" content="Play Guess Who online with a friend. Create a room code, share it, and play.">
 <meta name="theme-color" content="#14162b">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root{
     --bg:#12142a;
@@ -119,6 +123,14 @@
   .choice .joinbox{margin-top:0;justify-content:stretch}
   .choice .joinbox input{width:100%;flex:1}
   .alt{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .localnames{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+  .localnames input{width:190px}
+  #coverModal{background:var(--bg);backdrop-filter:none}
+  #coverModal .box{max-width:380px}
+  #coverModal h2{font-size:26px;margin:.3em 0 .2em}
+  /* not merely dimmed: the other player must not be able to make out which
+     cards have been flipped, or the secret in the side panel */
+  .screen.covered > *{visibility:hidden}
 
   .step{font-size:14px;color:var(--muted);text-align:left;margin:16px 0 6px}
   .step b{color:var(--text)}
@@ -394,6 +406,36 @@
         <p class="hint" style="margin:0 0 8px">Codes not working? There's a way in that uses no server at all:</p>
         <button class="btn ghost sm" id="btnManual">Connect manually instead</button>
       </div>
+
+      <div class="alt">
+        <p class="hint" style="margin:0 0 8px">
+          No internet — on a plane, or out of signal? Play on this one device,
+          passing it between you.
+        </p>
+        <button class="btn ghost sm" id="btnLocal">Play on one device</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ONE DEVICE ================= -->
+  <section class="screen" id="scLocal">
+    <div class="card home">
+      <h2 style="margin:.1em 0 .3em">Play on one device</h2>
+      <p class="sub" style="font-size:15px">
+        No internet needed at all. You each get a secret character, and pass the
+        device back and forth — it hides the board in between so neither of you
+        sees the other's.
+      </p>
+      <div class="localnames">
+        <input type="text" id="p1Name" class="name" maxlength="14" placeholder="First player">
+        <input type="text" id="p2Name" class="name" maxlength="14" placeholder="Second player">
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn primary" id="btnLocalStart">Start playing</button>
+      </div>
+      <div style="margin-top:20px">
+        <button class="btn ghost sm" id="btnLocalBack">Back</button>
+      </div>
     </div>
   </section>
 
@@ -488,6 +530,7 @@
     <div class="turnbar" id="turnbar">
       <div class="status" id="turnText">Setting up…</div>
       <div class="spacer"></div>
+      <button class="btn sm accent" id="btnPass" style="display:none">Done — pass it over</button>
       <button class="btn sm ghost" id="btnResetBoard">Reset board</button>
       <button class="btn sm danger" id="btnQuit">Quit</button>
     </div>
@@ -569,6 +612,18 @@
       <button class="btn ghost" id="btnHome">Back to menu</button>
     </div>
     <p class="hint" id="rematchNote" style="display:none">Waiting for your opponent to accept…</p>
+  </div>
+</div>
+
+<!-- hides the board while the device changes hands -->
+<div class="modal" id="coverModal">
+  <div class="card box">
+    <div style="font-size:52px;line-height:1">🙈</div>
+    <h2 id="coverTitle">Pass it over</h2>
+    <p id="coverText" style="color:var(--muted);margin:0 0 18px">
+      Hand the device to the next player.
+    </p>
+    <button class="btn primary" id="btnCoverReady">I'm ready</button>
   </div>
 </div>
 
@@ -893,7 +948,8 @@ const S = {
 
 const $ = sel => document.querySelector(sel);
 const el = {
-  screens:{home:$("#scHome"), manual:$("#scManual"), lobby:$("#scLobby"), game:$("#scGame")},
+  screens:{home:$("#scHome"), local:$("#scLocal"), manual:$("#scManual"),
+           lobby:$("#scLobby"), game:$("#scGame")},
   board:$("#board"), log:$("#log"),
   turnbar:$("#turnbar"), turnText:$("#turnText"),
   remain:$("#remainCount"), theirRemain:$("#theirCount"),
@@ -905,7 +961,7 @@ const el = {
   connPill:$("#connPill"), connPillText:$("#connPillText"),
   banner:$("#banner"), endModal:$("#endModal"),
   endTitle:$("#endTitle"), endText:$("#endText"), endReveal:$("#endReveal"),
-  rematchNote:$("#rematchNote")
+  rematchNote:$("#rematchNote"), btnPass:$("#btnPass"), coverModal:$("#coverModal")
 };
 
 function show(name){
@@ -1707,6 +1763,109 @@ function pickSecret(){
   return CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
 }
 
+/* =========================================================
+   7b. ONE DEVICE, TWO PLAYERS
+
+   Needs no connection of any kind, which is the only way two
+   people can play with the radios off. Each player's board
+   and secret live in L.players; the current one is copied
+   into S so every existing screen keeps working unchanged.
+   ========================================================= */
+
+const L = { on:false, players:[], turn:0 };
+
+function startLocalGame(n1, n2){
+  L.on = true;
+  L.turn = 0;
+  L.players = [
+    {name: n1 || "Player 1", secret: pickSecret(), down: new Set()},
+    {name: n2 || "Player 2", secret: pickSecret(), down: new Set()}
+  ];
+
+  S.phase = "playing";
+  S.conn = null;
+  S.theirSecret = null;
+  S.guessMode = false;
+  S.pendingQ = null;
+  el.log.innerHTML = "";
+  el.endModal.classList.remove("on");
+  el.roomPill.style.display = "none";
+  el.connPill.style.display = "none";
+
+  buildBoard();
+  buildQuestionList();
+  show("game");
+  logLine("Two players, one device. Pass it over when you're told to — "
+        + "the board hides itself in between.", "sys");
+  coverFor(0);
+}
+
+/* Point S at whoever is holding the device now. */
+function loadLocalPlayer(i){
+  const me = L.players[i], them = L.players[1 - i];
+  S.mySecret = me.secret;
+  S.down     = me.down;
+  S.myName   = me.name;
+  S.theirName= them.name;
+  S.myTurn   = true;
+  S.pendingQ = null;
+  S.guessMode= false;
+  el.guessHint.style.display = "none";
+  el.qInput.value = "";
+  updateReading();
+  refreshBoard();
+  renderSecret();
+  renderTurn();
+  el.theirRemain.textContent = them.name + ": " + (CHARACTERS.length - them.down.size) + " standing";
+}
+
+function coverFor(i){
+  L.turn = i;
+  const who = L.players[i].name;
+  $("#coverTitle").textContent = "Pass it to " + who;
+  $("#coverText").textContent = "Look away, " + L.players[1 - i].name + " — this is "
+                              + who + "'s board and secret character.";
+  $("#btnCoverReady").textContent = "I'm " + who + " — ready";
+  el.screens.game.classList.add("covered");
+  el.coverModal.classList.add("on");
+}
+
+function localAsk(got){
+  const them = L.players[1 - L.turn];
+  const yes = !!got.q.test(them.secret) !== !!got.neg;
+  logLine(`<b>${esc(S.myName)}</b> asked: “${esc(el.qInput.value.trim() || got.q.text)}”<br>`
+        + `<span class="asread">${esc(readBack(got.q, got.neg))}</span> `
+        + `<span class="a ${yes?"y":"n"}">${yes?"YES":"NO"}</span>`,
+          yes ? "yes" : "no");
+  el.qInput.value = "";
+  updateReading();
+  banner("Flip your cards, then hand it over.");
+}
+
+function localGuess(c){
+  const them = L.players[1 - L.turn];
+  const correct = c.id === them.secret.id;
+  logLine(`<b>${esc(S.myName)}</b> guessed <b>${esc(c.name)}</b> — ${correct ? "correct!" : "wrong!"}`,
+          correct ? "yes" : "no");
+  S.theirSecret = them.secret;
+  endGame(correct, correct
+    ? S.myName + " found " + them.name + "'s character."
+    : them.name + "'s person was actually " + them.secret.name + ".");
+}
+
+function endLocalTurn(){
+  if (!L.on || S.phase !== "playing") return;
+  coverFor(1 - L.turn);
+}
+
+function leaveLocal(){
+  L.on = false;
+  L.players = [];
+  S.down = new Set();
+  el.coverModal.classList.remove("on");
+  el.screens.game.classList.remove("covered");
+}
+
 function startNewGame(iAmHost, guestFirstFromHost){
   // Each player picks their own secret locally. Neither side ever sends it
   // until the reveal, so neither side can peek or cheat.
@@ -1777,6 +1936,7 @@ function onTileClick(c){
     S.guessMode = false;
     el.guessHint.style.display = "none";
     refreshBoard();
+    if (L.on){ localGuess(c); return; }
     send({t:"guess", charId:c.id, mine:S.mySecret.id});
     logLine(`You made a final guess: <b>${esc(c.name)}</b>…`, "you");
     S.myTurn = false;
@@ -1831,7 +1991,7 @@ function updateReading(){
 }
 
 function renderTurn(){
-  const live = S.conn && S.conn.open;
+  const live = L.on || (S.conn && S.conn.open);
   const can = S.phase === "playing" && S.myTurn && live && !S.pendingQ;
 
   el.turnbar.classList.toggle("mine", !!(S.myTurn && S.phase === "playing"));
@@ -1840,12 +2000,14 @@ function renderTurn(){
   if (S.phase !== "playing")      el.turnText.textContent = "Game over";
   else if (!live)                 el.turnText.textContent = "Opponent disconnected";
   else if (S.pendingQ)            el.turnText.textContent = "Waiting for their answer…";
+  else if (L.on)                  el.turnText.textContent = S.myName + "'s turn — ask a question";
   else if (S.myTurn)              el.turnText.textContent = "Your turn — ask a question";
   else                            el.turnText.textContent = S.theirName + "'s turn…";
 
   el.btnAsk.disabled   = !can;
   el.btnGuess.disabled = !can;
   el.qInput.disabled   = !can;
+  el.btnPass.style.display = L.on && S.phase === "playing" ? "" : "none";
 }
 
 function endGame(iWon, detail){
@@ -1875,11 +2037,13 @@ function endGame(iWon, detail){
 function doRematch(){
   el.endModal.classList.remove("on");
   el.rematchNote.style.display = "none";
+  if (L.on){ startLocalGame(L.players[0].name, L.players[1].name); return; }
   if (S.isHost) startNewGame(true);
   // guests wait for the host's "start" message
 }
 
 function leaveToHome(){
+  leaveLocal();
   stopWatchdog();
   clearTimeout(knockTimer);
   clearTimeout(rehostTimer); rehostTimer = null;
@@ -1936,6 +2100,23 @@ $("#btnCopy").addEventListener("click", async () => {
     banner("Copy failed — select the link and copy it manually.", true);
   }
 });
+
+/* ---- one device ---- */
+$("#btnLocal").addEventListener("click", () => {
+  const saved = localStorage.getItem("gw_name");
+  if (saved && !$("#p1Name").value) $("#p1Name").value = saved;
+  show("local");
+});
+$("#btnLocalBack").addEventListener("click", () => show("home"));
+$("#btnLocalStart").addEventListener("click", () => {
+  startLocalGame($("#p1Name").value.trim(), $("#p2Name").value.trim());
+});
+$("#btnCoverReady").addEventListener("click", () => {
+  el.coverModal.classList.remove("on");
+  el.screens.game.classList.remove("covered");
+  loadLocalPlayer(L.turn);
+});
+el.btnPass.addEventListener("click", endLocalTurn);
 
 /* ---- manual connect ---- */
 function openManual(){
@@ -1998,6 +2179,7 @@ function askTyped(){
     banner("I couldn't tell what that's asking — try naming a feature like glasses, beard or hair colour.", true);
     return;
   }
+  if (L.on){ localAsk(got); renderTurn(); return; }
   S.pendingQ = got.q.id;
   send({t:"ask", qid:got.q.id, neg:got.neg, text:raw.slice(0, 90)});
   el.qInput.value = "";
@@ -2029,6 +2211,7 @@ $("#btnResetBoard").addEventListener("click", () => {
 });
 
 $("#btnRematch").addEventListener("click", () => {
+  if (L.on){ doRematch(); return; }     // nobody to wait for on one device
   S.rematchMe = true;
   send({t:"rematch"});
   if (S.rematchThem) doRematch();
@@ -2052,7 +2235,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.11";
+const BUILD = "2026-07-28.12";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */
@@ -2074,8 +2257,20 @@ function probeServer(){
   setTimeout(() => finish(false, "timeout"), 12000);
 }
 
+/* Cache the game so it opens with no connection — the whole point of being
+   able to play on a plane. Registration failing is not fatal; the game simply
+   stays online-only. */
+function registerWorker(){
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol === "file:") return;      // not allowed off the filesystem
+  navigator.serviceWorker.register("sw.js")
+    .then(() => diag("offline: ready"))
+    .catch(e => diag("offline: unavailable (" + e.message + ")"));
+}
+
 (function boot(){
   $("#buildTag").textContent = "build " + BUILD;
+  registerWorker();
 
   // a few random faces on the menu, tilted like real tiles
   const strip = document.getElementById("faceStrip");

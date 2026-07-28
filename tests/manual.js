@@ -19,7 +19,7 @@ const waitFor = async (pg, fn, ms = 15000) => {
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } , serviceWorkers: 'block' });
   const A = await ctx.newPage();   // invites
   const B = await ctx.newPage();   // replies
 

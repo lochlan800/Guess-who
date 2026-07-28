@@ -1,7 +1,7 @@
-# Guess Who — online
+# Guess Who
 
-The classic guessing game, playable with a friend over the internet. One player
-creates a room, sends the code (or the link), and both boards appear.
+The classic guessing game. Play it with a friend over the internet, or on one
+device with no connection at all.
 
 There is no server and no database: the two browsers talk to each other
 directly over WebRTC, so nothing about your game is stored anywhere.
@@ -38,6 +38,28 @@ example `npx http-server` — and open the address it prints. Opening
 - **You** flip the cards down. Working out who is ruled out is the game, so
   nothing moves on its own; click any tile to flip it down or back up.
 - When you think you know, use **Final guess**. Right, you win. Wrong, you lose.
+
+## Playing with no internet — on a plane, or out of signal
+
+Two things make this work.
+
+**The game keeps itself.** Once you have opened it on a connection, it is
+stored on your device and opens again with nothing at all — flight mode
+included. On a phone, "Add to Home Screen" makes it open like an app. When you
+do have a connection it always fetches the newest version first, so keeping it
+offline never leaves you stuck on an old build.
+
+**Play on one device.** Pick **Play on one device** on the home screen, put in
+both names, and pass it back and forth. Each player has their own secret and
+their own board, and the screen is properly hidden while it changes hands —
+not dimmed, actually hidden, so nobody can make out which cards you have
+flipped or who you were dealt. Tap **Done — pass it over** when your turn ends.
+
+Worth being straight about the limit: two *separate* devices in flight mode
+cannot reach each other. Nothing can fix that — no radios means no path
+between them. If both phones are on the same wifi (in-flight wifi, or a
+hotspot), **Connect manually** below can still work without any internet,
+because it needs only a route between the two of you and no server at all.
 
 ## Connect manually — when codes won't work
 
@@ -113,6 +135,8 @@ registered.
 | File | Purpose |
 | --- | --- |
 | `index.html` | The entire game: characters, artwork, rules, networking, UI |
+| `sw.js` | Keeps the game on your device so it opens with no connection |
+| `manifest.webmanifest`, `icon.svg` | Lets it install to a home screen |
 | `vendor/peerjs.min.js` | PeerJS 1.5.4, the WebRTC connection library |
 
 The 24 characters are defined as plain attribute data near the top of the

@@ -11,7 +11,7 @@ function check(name, cond, extra) {
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } , serviceWorkers: 'block' });
   const A = await ctx.newPage();
   const B = await ctx.newPage();
 

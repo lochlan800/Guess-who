@@ -52,7 +52,7 @@ const FAKE = () => {
 
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
-  const ctx = await b.newContext({viewport:{width:1100,height:900}});
+  const ctx = await b.newContext({viewport:{width:1100,height:900}, serviceWorkers: 'block' });
   const p = await ctx.newPage();
   p.on('pageerror', e => console.log('PAGEERROR', e.message));
   await p.goto('http://127.0.0.1:8099/index.html');
