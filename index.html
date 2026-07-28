@@ -768,9 +768,15 @@ function scheduleRehost(code, delay){
 /* Re-register the *same* code: it may already be written down or sent, so
    quietly switching to a different one would be worse than the outage. */
 function rehostSameCode(code){
+  clearTimeout(rehostTimer); rehostTimer = null;   // this attempt supersedes any queued one
   if (S.phase !== "lobby" || !S.isHost) return;
   if (S.conn && S.conn.open) return;
-  try { if (S.peer) S.peer.destroy(); } catch(e){}
+  // Drop our reference *before* destroying: destroy() fires "close"
+  // synchronously, and a handler that still recognises itself as the current
+  // peer would queue another rehost, tearing down each new room in turn.
+  const old = S.peer;
+  S.peer = null;
+  try { if (old) old.destroy(); } catch(e){}
   const peer = newPeer(PEER_PREFIX + code);
   S.peer = peer;
   attachHostHandlers(peer, code, -1);
@@ -779,8 +785,15 @@ function rehostSameCode(code){
 /* attempt >= 0 -> creating a brand new room, nobody has the code yet.
    attempt <  0 -> re-registering a code that has already been shared.      */
 function attachHostHandlers(peer, code, attempt){
+  // Events from a peer we have already replaced must not touch the live room.
+  const current = () => peer === S.peer;
+
   peer.on("open", () => {
+    if (!current()) { try { peer.destroy(); } catch(e){} return; }
     stopWatchdog();
+    // We are live, so any repair queued during the outage is now a
+    // demolition order for a working room. Cancel it.
+    clearTimeout(rehostTimer); rehostTimer = null;
     rehostTries = 0;
     $("#lobbyCode").textContent = code;
     el.roomPillCode.textContent = code;
@@ -792,6 +805,7 @@ function attachHostHandlers(peer, code, attempt){
   });
 
   peer.on("connection", conn => {
+    if (!current()) { try { conn.close(); } catch(e){} return; }
     if (S.conn && S.conn.open){ conn.close(); return; }  // room is full
     bindConn(conn);
   });
@@ -799,17 +813,21 @@ function attachHostHandlers(peer, code, attempt){
   // socket dropped (backgrounded tab, sleep, flaky wifi) — the room is
   // unregistered until we get back, so get back promptly
   peer.on("disconnected", () => {
+    if (!current()) return;
     setRoomLive(false);
     if (S.phase !== "lobby") return;
     try { peer.reconnect(); } catch(e){ scheduleRehost(code); }
   });
 
   peer.on("close", () => {
+    if (!current()) return;            // we replaced it on purpose
     setRoomLive(false);
     scheduleRehost(code);
   });
 
   peer.on("error", err => {
+    if (!current()) return;
+    S.lastErr = err && err.type;
     if (err.type === "unavailable-id"){
       try { peer.destroy(); } catch(e){}
       // Nobody has seen this code yet, so on the very first attempt it's free
@@ -1267,11 +1285,13 @@ function leaveToHome(){
   clearTimeout(knockTimer);
   clearTimeout(rehostTimer); rehostTimer = null;
   releaseAwake();
-  try { if (S.conn) S.conn.close(); } catch(e){}
-  try { if (S.peer) S.peer.destroy(); } catch(e){}
+  // clear state first, so teardown events don't look like a live room dying
+  const oldConn = S.conn, oldPeer = S.peer;
   S.conn = S.peer = null;
   S.phase = "home";
   S.roomLive = false;
+  try { if (oldConn) oldConn.close(); } catch(e){}
+  try { if (oldPeer) oldPeer.destroy(); } catch(e){}
   el.roomPill.style.display = "none";
   el.connPill.style.display = "none";
   el.endModal.classList.remove("on");
@@ -1374,7 +1394,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.5";
+const BUILD = "2026-07-28.6";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */
