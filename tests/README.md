@@ -10,6 +10,7 @@ node tests/rendezvous.js        # two tabs meeting in a room
 node tests/manual.js            # manual connect, real WebRTC
 node tests/questions.js         # understanding typed questions
 node tests/local.js             # two players, one device
+node tests/ai.js                # playing the computer
 node tests/offline.js           # works with the network genuinely off
 ```
 
@@ -22,6 +23,7 @@ install). Each script exits non-zero on failure and prints one line per check.
 | `recon.js` | Surviving interruptions: re-registering after the connection drops, keeping the same code, and never rebuilding a room that is already healthy. |
 | `rendezvous.js` | Two real tabs meeting over a shared fake signalling network, including the case that matters most — one player's tab freezes, the other takes over the room, and the first reconnects to them. |
 | `questions.js` | Reading typed questions: three dozen real phrasings, the hair-colour-versus-skin-tone traps, negation, that every question is reachable by typing, and that nonsense is refused rather than guessed at. |
+| `ai.js` | Whole games against the computer at every difficulty. The invariant it guards: the computer's shortlist of who you might be must never drop your actual character, or it ends up confidently naming someone you are not. Also that it can be beaten, and that a wrong guess loses. |
 | `local.js` | A whole game on one device: dealing, asking, flipping, passing, guessing, rematch — and that the board and secret are really hidden while the device changes hands, not just dimmed. |
 | `offline.js` | Puts the browser into offline mode for real, reloads, and plays a full game from cache. This is the aeroplane case. |
 | `manual.js` | Manual connect with **nothing faked**: two tabs complete a real WebRTC handshake by passing the invite and reply blobs between them, then play over the resulting data channel. Runs with no external network, because local candidates are enough for two tabs on one machine. |

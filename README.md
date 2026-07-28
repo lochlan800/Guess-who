@@ -1,7 +1,8 @@
 # Guess Who
 
-The classic guessing game. Play it with a friend over the internet, or on one
-device with no connection at all.
+The classic guessing game. Play it against the computer, with a friend over
+the internet, or with someone next to you on a single device — the last two
+needing no connection at all.
 
 There is no server and no database: the two browsers talk to each other
 directly over WebRTC, so nothing about your game is stored anywhere.
@@ -39,9 +40,25 @@ example `npx http-server` — and open the address it prints. Opening
   nothing moves on its own; click any tile to flip it down or back up.
 - When you think you know, use **Final guess**. Right, you win. Wrong, you lose.
 
+## Playing on your own, against the computer
+
+Pick a difficulty and press **Play the computer**. It holds a character of its
+own and answers your questions from it honestly, while keeping its own
+shortlist of who *you* might be and crossing off whoever your answers rule
+out. It guesses the moment one name is left, so the game is a race: narrow
+down its character before it narrows down yours.
+
+You go first, which is the advantage you need. **Easy** asks anything that
+tells it something, **normal** picks from among the better questions, and
+**hard** always asks the one that splits its shortlist most evenly — about
+five questions from twenty-four names, so you have to play well to beat it.
+
+The counter above the board shows how many names it still has in play, so you
+can see it closing in.
+
 ## Playing with no internet — on a plane, or out of signal
 
-Two things make this work.
+Three things make this work: the computer opponent above, and these two.
 
 **The game keeps itself.** Once you have opened it on a connection, it is
 stored on your device and opens again with nothing at all — flight mode
@@ -49,7 +66,7 @@ included. On a phone, "Add to Home Screen" makes it open like an app. When you
 do have a connection it always fetches the newest version first, so keeping it
 offline never leaves you stuck on an old build.
 
-**Play on one device.** Pick **Play on one device** on the home screen, put in
+**Play on one device.** Pick **Two players, one device** on the home screen, put in
 both names, and pass it back and forth. Each player has their own secret and
 their own board, and the screen is properly hidden while it changes hands —
 not dimmed, actually hidden, so nobody can make out which cards you have
