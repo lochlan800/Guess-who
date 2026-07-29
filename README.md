@@ -47,9 +47,10 @@ example `npx http-server` — and open the address it prints. Opening
 Pick a difficulty and press **Play the computer**. It holds a character of its
 own and answers your questions from it honestly, while keeping its own
 shortlist of who *you* might be and crossing off whoever your answers rule
-out. It guesses the moment one name is left — and sometimes before that, taking a
-punt when it has narrowed you down to two or three. So the game is a race, and
-one it can lose by gambling badly.
+out. It guesses the moment one name is left — and occasionally before that, taking
+a punt once it has you down to a few. That is deliberately rare, about one
+game in six or seven and never early on, so it stays a surprise rather than
+its usual move. A punt it gets wrong hands you the win.
 
 You go first, which is the advantage you need. **Easy** asks anything that
 tells it something, **normal** picks from among the better questions, and
