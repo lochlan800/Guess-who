@@ -118,7 +118,8 @@ const check = (n, c, x) => { console.log((c?'  PASS  ':'  FAIL  ')+n+(x!==undefi
   check('it is the second player about to guess', await p.evaluate(() => S.myName) === 'Sam');
   const wrongId = await p.evaluate(() => (L.players[0].secret.id % 24) + 1);
   await p.click('#btnGuess');
-  await p.evaluate(id => document.querySelector('#board .tile[data-id="'+id+'"]').click(), wrongId);
+  await p.evaluate(id => { document.querySelector('#board .tile[data-id="'+id+'"]').click();
+                           document.querySelector('#btnGuessYes').click(); }, wrongId);
   await p.waitForTimeout(300);
   check('a wrong guess ends the game',
         (await p.evaluate(() => document.querySelector('#endTitle').textContent)).length > 0);

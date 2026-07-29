@@ -127,6 +127,10 @@
   .offrow select{width:auto;margin:0;padding:9px 10px;font-size:13.5px}
   .localnames{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
   .localnames input{width:190px}
+  .guesspic{width:120px;margin:6px auto 8px;border-radius:12px;overflow:hidden;
+            border:2px solid var(--accent2);background:#f6f1e4}
+  .guesspic svg{display:block;width:100%;height:auto}
+  .guessname{font-size:24px;font-weight:bold;color:var(--accent2)}
   #coverModal{background:var(--bg);backdrop-filter:none}
   #coverModal .box{max-width:380px}
   #coverModal h2{font-size:26px;margin:.3em 0 .2em}
@@ -272,6 +276,12 @@
     width:100%;background:#171a3a;border:1px solid var(--line);color:var(--text);
     padding:11px 12px;border-radius:11px;font-size:14px;font-family:inherit;margin-bottom:10px
   }
+  .guessing{
+    display:flex;flex-direction:column;gap:8px;align-items:flex-start;
+    background:rgba(76,201,240,.12);border:1px solid var(--accent2);
+    border-radius:10px;padding:10px 12px;margin-top:10px;color:var(--text)
+  }
+  .guessing .btn{width:100%}
   .qbtns{display:flex;gap:8px;flex-wrap:wrap}
   .qbtns .btn{flex:1;min-width:120px}
 
@@ -580,10 +590,10 @@
             <summary>What can I ask about?</summary>
             <div id="askAbout"></div>
           </details>
-          <p class="hint" id="guessHint" style="display:none;margin-top:10px">
-            Click a character on your board to guess. Wrong guess = you lose!
-            <button class="btn sm ghost" id="btnCancelGuess" style="margin-top:8px">Cancel</button>
-          </p>
+          <div class="hint guessing" id="guessHint" style="display:none">
+            <b>Pick who you think they are.</b> You'll get a chance to confirm.
+            <button class="btn sm danger" id="btnCancelGuess">Changed my mind</button>
+          </div>
         </div>
 
         <div class="card">
@@ -621,6 +631,22 @@
       <button class="btn ghost" id="btnHome">Back to menu</button>
     </div>
     <p class="hint" id="rematchNote" style="display:none">Waiting for your opponent to accept…</p>
+  </div>
+</div>
+
+<!-- a wrong guess ends the game, so never let a stray tap commit one -->
+<div class="modal" id="guessModal">
+  <div class="card box">
+    <h2>Final guess?</h2>
+    <div class="guesspic" id="guessPic"></div>
+    <div class="guessname" id="guessName">—</div>
+    <p style="color:var(--muted);margin:.4em 0 18px">
+      Right and you win. Wrong and you lose — there's no second go.
+    </p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn primary" id="btnGuessYes">Yes — that's my guess</button>
+      <button class="btn ghost" id="btnGuessNo">No, go back</button>
+    </div>
   </div>
 </div>
 
@@ -951,6 +977,7 @@ const S = {
   myTurn:false,
   phase:"home",           // home | lobby | playing | over
   pendingQ:null,          // question I asked, awaiting their answer
+  pendingGuess:null,      // chosen but not yet confirmed
   guessMode:false,
   rematchMe:false, rematchThem:false
 };
@@ -971,7 +998,7 @@ const el = {
   banner:$("#banner"), endModal:$("#endModal"),
   endTitle:$("#endTitle"), endText:$("#endText"), endReveal:$("#endReveal"),
   rematchNote:$("#rematchNote"), btnPass:$("#btnPass"), coverModal:$("#coverModal"),
-  chatRow:$("#chatRow")
+  chatRow:$("#chatRow"), guessModal:$("#guessModal")
 };
 
 function show(name){
@@ -1859,6 +1886,17 @@ function aiPickQuestion(){
   return scored[Math.floor(Math.random() * scored.length)].q;   // easy: anything useful
 }
 
+/* A real opponent takes a punt sometimes rather than waiting for certainty,
+   and being able to lose that gamble is what makes it worth watching. */
+function aiWantsToGuess(){
+  const n = AI.candidates.length;
+  if (n <= 1) return true;
+  const chance = AI.level === "hard"   ? (n <= 2 ? 0.55 : 0)
+               : AI.level === "normal" ? (n <= 3 ? 0.30 : 0)
+               :                         (n <= 6 ? 0.18 : 0);
+  return Math.random() < chance;
+}
+
 function aiTakeTurn(){
   if (!AI.on || S.phase !== "playing" || AI.thinking) return;
   AI.thinking = true;
@@ -1871,10 +1909,13 @@ function aiTakeTurn(){
     AI.thinking = false;
     if (!AI.on || S.phase !== "playing") return;
 
-    if (AI.candidates.length <= 1){
-      const pick = AI.candidates[0] || pickSecret();
+    if (aiWantsToGuess()){
+      const pool = AI.candidates.length ? AI.candidates : CHARACTERS;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      const punt = AI.candidates.length > 1;
       const right = pick.id === S.mySecret.id;
-      logLine(`<b>Computer</b> guesses <b>${esc(pick.name)}</b> — ${right ? "and it's right." : "and it's wrong!"}`,
+      logLine(`<b>Computer</b> ${punt ? "takes a punt on" : "guesses"} <b>${esc(pick.name)}</b> — `
+            + `${right ? "and it's right." : "and it's wrong!"}`,
               right ? "no" : "yes");
       S.theirSecret = AI.secret;
       endGame(!right, right
@@ -2010,6 +2051,8 @@ function endLocalTurn(){
 }
 
 function leaveLocal(){
+  S.pendingGuess = null;
+  el.guessModal.classList.remove("on");
   AI.on = false;
   AI.thinking = false;
   L.on = false;
@@ -2072,6 +2115,40 @@ function buildBoard(){
   refreshBoard();
 }
 
+function askToConfirmGuess(c){
+  S.pendingGuess = c;
+  $("#guessPic").innerHTML = faceSVG(c);
+  $("#guessName").textContent = c.name;
+  $("#btnGuessYes").textContent = "Yes — I say " + c.name;
+  el.guessModal.classList.add("on");
+}
+
+function commitGuess(){
+  const c = S.pendingGuess;
+  S.pendingGuess = null;
+  el.guessModal.classList.remove("on");
+  if (!c || S.phase !== "playing") return;
+  S.guessMode = false;
+  el.guessHint.style.display = "none";
+  refreshBoard();
+  if (AI.on){ aiPlayerGuess(c); return; }
+  if (L.on){ localGuess(c); return; }
+  send({t:"guess", charId:c.id, mine:S.mySecret.id});
+  logLine(`You made a final guess: <b>${esc(c.name)}</b>…`, "you");
+  S.myTurn = false;
+  renderTurn();
+}
+
+function cancelGuess(keepPicking){
+  S.pendingGuess = null;
+  el.guessModal.classList.remove("on");
+  if (!keepPicking){
+    S.guessMode = false;
+    el.guessHint.style.display = "none";
+  }
+  refreshBoard();
+}
+
 function refreshBoard(){
   [...el.board.children].forEach(t => {
     const id = +t.dataset.id;
@@ -2087,15 +2164,7 @@ function onTileClick(c){
 
   if (S.guessMode){
     if (!S.myTurn){ banner("Wait for your turn."); return; }
-    S.guessMode = false;
-    el.guessHint.style.display = "none";
-    refreshBoard();
-    if (AI.on){ aiPlayerGuess(c); return; }
-    if (L.on){ localGuess(c); return; }
-    send({t:"guess", charId:c.id, mine:S.mySecret.id});
-    logLine(`You made a final guess: <b>${esc(c.name)}</b>…`, "you");
-    S.myTurn = false;
-    renderTurn();
+    askToConfirmGuess(c);          // one more tap before it can cost the game
     return;
   }
 
@@ -2365,11 +2434,9 @@ el.btnGuess.addEventListener("click", () => {
   banner("Pick the character you think they have.");
 });
 
-$("#btnCancelGuess").addEventListener("click", () => {
-  S.guessMode = false;
-  el.guessHint.style.display = "none";
-  refreshBoard();
-});
+$("#btnCancelGuess").addEventListener("click", () => cancelGuess(false));
+$("#btnGuessYes").addEventListener("click", commitGuess);
+$("#btnGuessNo").addEventListener("click", () => cancelGuess(true));
 
 $("#btnResetBoard").addEventListener("click", () => {
   if (S.down.size && !confirm("Turn all your cards back up? This clears everything you've worked out."))
@@ -2404,7 +2471,7 @@ $("#chatInput").addEventListener("keydown", e => { if (e.key === "Enter") sendCh
 /* ---------- boot ---------- */
 /* Bump on every deploy. Both players can read it off the footer, which is the
    quickest way to tell "it's broken" apart from "you're on a cached copy". */
-const BUILD = "2026-07-28.14";
+const BUILD = "2026-07-28.15";
 
 /* Is the matchmaking server reachable from *this* network at all? Answering
    that up front separates a blocked network from an expired room. */

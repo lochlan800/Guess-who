@@ -38,15 +38,18 @@ example `npx http-server` — and open the address it prints. Opening
   own character, so the answer is always honest.
 - **You** flip the cards down. Working out who is ruled out is the game, so
   nothing moves on its own; click any tile to flip it down or back up.
-- When you think you know, use **Final guess**. Right, you win. Wrong, you lose.
+- When you think you know, use **Final guess**, pick a face, and confirm. A
+  wrong guess loses, so nothing is committed until you say yes — a stray tap
+  can always be backed out of.
 
 ## Playing on your own, against the computer
 
 Pick a difficulty and press **Play the computer**. It holds a character of its
 own and answers your questions from it honestly, while keeping its own
 shortlist of who *you* might be and crossing off whoever your answers rule
-out. It guesses the moment one name is left, so the game is a race: narrow
-down its character before it narrows down yours.
+out. It guesses the moment one name is left — and sometimes before that, taking a
+punt when it has narrowed you down to two or three. So the game is a race, and
+one it can lose by gambling badly.
 
 You go first, which is the advantage you need. **Easy** asks anything that
 tells it something, **normal** picks from among the better questions, and

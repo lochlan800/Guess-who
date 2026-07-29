@@ -96,14 +96,37 @@ const waitFor = async (p, fn, ms = 12000) => {
     }
   }
 
-  // ---- and you can beat it ----
+  // ---- a stray tap must never cost the game ----
   await p.goto(URL);
   await p.selectOption('#aiLevel', 'easy');
   await p.click('#btnAi');
   await p.waitForTimeout(200);
+  await p.click('#btnGuess');
+  check('there is an obvious way out of guessing',
+        await p.evaluate(() => document.querySelector('#btnCancelGuess').offsetParent !== null));
+  await p.click('#btnCancelGuess');
+  check('backing out leaves the game running',
+        await p.evaluate(() => S.phase === 'playing' && S.guessMode === false));
+
+  await p.click('#btnGuess');
+  await p.evaluate(() => document.querySelector('#board .tile[data-id="7"]').click());
+  await p.waitForTimeout(200);
+  check('tapping a character asks you to confirm first',
+        await p.evaluate(() => document.querySelector('#guessModal').classList.contains('on')));
+  check('the confirmation shows who you picked',
+        (await p.evaluate(() => document.querySelector('#guessName').textContent)) === 'Greta');
+  check('nothing has been decided yet', await p.evaluate(() => S.phase) === 'playing');
+  await p.click('#btnGuessNo');
+  await p.waitForTimeout(150);
+  check('saying no does not end the game', await p.evaluate(() => S.phase) === 'playing');
+  check('and you can still pick someone else', await p.evaluate(() => S.guessMode === true));
+  await p.click('#btnCancelGuess');
+
+  // ---- and you can beat it ----
   const itsId = await p.evaluate(() => AI.secret.id);
   await p.click('#btnGuess');
   await p.evaluate(id => document.querySelector('#board .tile[data-id="'+id+'"]').click(), itsId);
+  await p.click('#btnGuessYes');
   await p.waitForTimeout(300);
   check('guessing its character correctly wins',
         (await p.evaluate(() => document.querySelector('#endTitle').textContent)).includes('win'));
@@ -118,8 +141,49 @@ const waitFor = async (p, fn, ms = 12000) => {
   const wrong = await p.evaluate(() => (AI.secret.id % 24) + 1);
   await p.click('#btnGuess');
   await p.evaluate(id => document.querySelector('#board .tile[data-id="'+id+'"]').click(), wrong);
+  await p.click('#btnGuessYes');
   await p.waitForTimeout(300);
   check('a wrong guess loses', (await p.evaluate(() => document.querySelector('#endTitle').textContent)).includes('lose'));
+
+  // ---- the computer can gamble before it is certain ----
+  await p.goto(URL);
+  await p.selectOption('#aiLevel', 'hard');
+  await p.click('#btnAi');
+  await p.waitForTimeout(200);
+  const gambles = await p.evaluate(() => {
+    let punts = 0;
+    for (let i = 0; i < 400; i++){
+      AI.level = 'hard'; AI.candidates = CHARACTERS.slice(0, 2);
+      if (aiWantsToGuess()) punts++;
+    }
+    return punts;
+  });
+  check('with two names left it sometimes takes the shot rather than always asking',
+        gambles > 40 && gambles < 360, { outOf400: gambles });
+  const certain = await p.evaluate(() => {
+    AI.candidates = CHARACTERS.slice(0, 1);
+    return aiWantsToGuess();
+  });
+  check('with one name left it always guesses', certain === true);
+  const early = await p.evaluate(() => {
+    AI.level = 'hard'; AI.candidates = CHARACTERS.slice();
+    let punts = 0;
+    for (let i = 0; i < 200; i++) if (aiWantsToGuess()) punts++;
+    return punts;
+  });
+  check('it does not throw the game away at 24 names', early === 0, early);
+
+  // a losing gamble must hand you the win
+  await p.evaluate(() => {
+    AI.candidates = CHARACTERS.filter(c => c.id !== S.mySecret.id).slice(0, 1);
+    S.myTurn = false;
+    aiTakeTurn();
+  });
+  check('when its punt is wrong, you win',
+        await waitFor(p, () => document.querySelector('#endTitle').textContent.includes('win')),
+        await p.evaluate(() => document.querySelector('#endTitle').textContent));
+  check('and the log says it guessed wrong',
+        (await p.evaluate(() => document.querySelector('#log').textContent)).includes("it's wrong"));
 
   check('no javascript errors', errs.length === 0, errs.slice(0, 5));
 

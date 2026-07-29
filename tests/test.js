@@ -142,7 +142,8 @@ function check(name, cond, extra) {
   // ---- wrong guess loses ----
   await A.evaluate(() => { S.down.clear(); refreshBoard(); document.querySelector('#btnGuess').click(); });
   check('guess mode highlights the board', await A.evaluate(() => document.querySelectorAll('#board .tile.pick').length) === 24);
-  await A.evaluate(() => document.querySelector('#board .tile[data-id="3"]').click()); // Carlos, wrong
+  await A.evaluate(() => { document.querySelector('#board .tile[data-id="3"]').click();
+                           document.querySelector('#btnGuessYes').click(); });   // Carlos, wrong
   await pump(A, B);   // guess -> B
   await pump(B, A);   // result -> A
   check('wrong guesser loses', (await A.evaluate(() => document.querySelector('#endTitle').textContent)).includes('lose'));
@@ -170,7 +171,9 @@ function check(name, cond, extra) {
   // ---- correct guess wins ----
   await A.evaluate(() => { S.mySecret = byId(2); renderSecret(); S.myTurn = true; renderTurn(); });
   await B.evaluate(() => { S.mySecret = byId(8); renderSecret(); S.myTurn = false; renderTurn(); });
-  await A.evaluate(() => { document.querySelector('#btnGuess').click(); document.querySelector('#board .tile[data-id="8"]').click(); });
+  await A.evaluate(() => { document.querySelector('#btnGuess').click();
+                           document.querySelector('#board .tile[data-id="8"]').click();
+                           document.querySelector('#btnGuessYes').click(); });
   await pump(A, B);
   await pump(B, A);
   check('correct guesser wins', (await A.evaluate(() => document.querySelector('#endTitle').textContent)).includes('win'));

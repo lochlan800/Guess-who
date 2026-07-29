@@ -76,7 +76,8 @@ const check = (n, c, x) => { console.log((c?'  PASS  ':'  FAIL  ')+n+(x!==undefi
 
   const rightId = await p.evaluate(() => L.players[0].secret.id);
   await p.click('#btnGuess');
-  await p.evaluate(id => document.querySelector('#board .tile[data-id="'+id+'"]').click(), rightId);
+  await p.evaluate(id => { document.querySelector('#board .tile[data-id="'+id+'"]').click();
+                           document.querySelector('#btnGuessYes').click(); }, rightId);
   await p.waitForTimeout(300);
   check('a correct guess wins, offline',
         (await p.evaluate(() => document.querySelector('#endTitle').textContent)).includes('win'));

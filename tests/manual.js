@@ -142,6 +142,7 @@ const waitFor = async (pg, fn, ms = 15000) => {
   await guesser.evaluate(id => {
     document.querySelector('#btnGuess').click();
     document.querySelector('#board .tile[data-id="' + id + '"]').click();
+    document.querySelector('#btnGuessYes').click();          // confirm, as a player must
   }, wrongId);
   check('a wrong guess loses for the guesser',
         await waitFor(guesser, () => document.querySelector('#endTitle').textContent.includes('lose')));
